@@ -419,16 +419,8 @@ if (!hasGetUserMedia()) {
   showSecurityWarning('Tu navegador no soporta acceso a la cámara. Usa Chrome, Firefox o Edge.');
 } else if (isInIframe()) {
   // CASO ESPECÍFICO: Estamos en un iframe (Rise/Articulate)
-  console.warn("Aplicación cargada en iframe - cámara bloqueada");
-  updateStatus('⚠️ Abre en nueva ventana para usar la cámara');
-  
-  // Cambiar el comportamiento del botón
-  webcamButton.innerHTML = `
-    <span class="button-icon">🚀</span>
-    <span class="button-text">Abrir en Nueva Ventana</span>
-  `;
-  webcamButton.removeEventListener("click", enableCam);
-  webcamButton.addEventListener("click", openInNewWindow);
+  console.warn("Aplicación cargada en iframe - Intentando acceso a cámara");
+  updateStatus('⚠️ En iframe - Intentando acceder a cámara...');
   
   // Mostrar banner de advertencia
   const iframeBanner = document.getElementById('iframeBanner');
@@ -436,20 +428,44 @@ if (!hasGetUserMedia()) {
     iframeBanner.style.display = 'block';
   }
   
-  showSecurityWarning(
-    '🔒 DETECTADO: Estás viendo esto dentro de Rise/Articulate (iframe)\n\n' +
-    '⚠️ PROBLEMA:\n' +
-    'Los navegadores BLOQUEAN el acceso a la cámara en iframes por seguridad,\n' +
-    'incluso si la página usa HTTPS.\n\n' +
-    '✅ SOLUCIÓN SIMPLE:\n' +
-    'Haz clic en el botón "Abrir en Nueva Ventana" para usar la aplicación.\n\n' +
-    '📋 PARA INSTRUCTORES:\n' +
-    'En Rise, usa un BOTÓN DE ENLACE EXTERNO en lugar de iframe:\n' +
-    '• Bloque: Botón\n' +
-    '• URL: ' + window.location.href + '\n' +
-    '• ✅ Marcar: "Abrir en nueva ventana"\n\n' +
-    'Así los estudiantes accederán directamente sin problemas.'
-  );
+  // Intenta acceder a cámara en iframe
+  // Si funciona, perfecto; si no, mostrará el error y opción de nueva ventana
+  webcamButton.addEventListener("click", async function(event) {
+    try {
+      const constraints = { video: { width: { ideal: 1280 }, height: { ideal: 720 } } };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Si llegamos aquí, la cámara está permitida
+      stream.getTracks().forEach(track => track.stop());
+      updateStatus('✅ Cámara disponible - Iniciando...');
+      enableCam(event);
+    } catch (error) {
+      // Si falla, ofrece opción de nueva ventana
+      console.warn("Acceso a cámara denegado en iframe:", error.message);
+      updateStatus('⚠️ Abre en nueva ventana para usar la cámara');
+      
+      // Reemplazar botón con opción de nueva ventana
+      webcamButton.innerHTML = `
+        <span class="button-icon">🚀</span>
+        <span class="button-text">Abrir en Nueva Ventana</span>
+      `;
+      webcamButton.removeEventListener("click", arguments.callee);
+      webcamButton.addEventListener("click", openInNewWindow);
+      
+      showSecurityWarning(
+        '🔒 DETECTADO: Estás viendo esto dentro de Rise/Articulate (iframe)\n\n' +
+        '⚠️ PROBLEMA:\n' +
+        'Los navegadores BLOQUEAN el acceso a la cámara en iframes por seguridad.\n\n' +
+        '✅ SOLUCIÓN:\n' +
+        'Haz clic en el botón "Abrir en Nueva Ventana" para usar la aplicación.\n\n' +
+        '📋 PARA INSTRUCTORES (Rise 360):\n' +
+        'Usa un BOTÓN DE ENLACE EXTERNO en lugar de iframe:\n' +
+        '• Bloque: Botón\n' +
+        '• URL: ' + window.location.href + '\n' +
+        '• ✅ Marcar: "Abrir en nueva ventana"\n\n' +
+        'Esto permite que los estudiantes accedan directamente sin problemas.'
+      );
+    }
+  });
 } else if (!isSecureContext()) {
   console.warn("Contexto inseguro detectado");
   updateStatus('⚠️ Contexto inseguro - Cámara bloqueada');
@@ -543,15 +559,28 @@ async function enableCam(event) {
                          '• Aplicaciones de fotos/video';
       } else if (error.name === 'SecurityError') {
         errorMessage = '🔒 Error de seguridad';
+        
+        // Detectar si es iframe
+        const inIframe = isInIframe();
+        const iframeNote = inIframe ? 
+          '\n\n✅ SOLUCIÓN PARA RISE 360:\n' +
+          'Pide a tu profesor que:\n' +
+          '1. Reemplace el iframe por un botón con enlace externo\n' +
+          '2. O use esta URL en el iframe con permisos:\n' +
+          '<iframe ... allow="camera *; microphone *" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>\n\n' +
+          '⚠️ O haz clic en "Abrir en Nueva Ventana" en el botón.'
+          : '';
+        
         detailedMessage = 'Por razones de seguridad, no se puede acceder a la cámara.\n\n' +
-                         '⚠️ IMPORTANTE para Rise/Articulate:\n' +
-                         'Los navegadores bloquean la cámara en iframes sin HTTPS.\n\n' +
+                         '⚠️ REQUISITOS:\n' +
+                         'Los navegadores requieren HTTPS para acceder a la cámara.\n' +
+                         'Esta página usa: ' + window.location.protocol + '//' + window.location.host + '\n\n' +
                          'Soluciones:\n' +
-                         '1. Usa el enlace directo: https://tu-usuario.github.io\n' +
+                         '1. Usa el enlace directo (abre en nueva ventana)\n' +
                          '2. Descarga el .zip y abre index.html localmente\n' +
-                         '3. Sube a un servidor HTTPS\n\n' +
-                         'Contexto actual: ' + window.location.protocol + '//' + window.location.host;
+                         iframeNote;
       } else {
+
         errorMessage = '❌ Error al acceder a la cámara';
         detailedMessage = 'Error: ' + error.name + '\n' + error.message + '\n\n' +
                          'Contexto: ' + window.location.protocol + '//' + window.location.host;
