@@ -1,82 +1,133 @@
 # 🔒 Soluciones para Usar con Rise/Articulate
 
-## ⚠️ El Problema
+## ⚠️ El Problema REAL
 
-Cuando intentas usar esta aplicación dentro de Rise (o cualquier plataforma LMS), el navegador **bloquea el acceso a la cámara** por razones de seguridad.
+Aunque tu aplicación esté alojada en GitHub Pages (HTTPS), **NO FUNCIONARÁ en un iframe de Rise**.
 
-### ¿Por qué sucede esto?
+### ¿Por qué NO funciona?
 
-Los navegadores modernos **solo permiten acceso a la cámara** en contextos seguros:
-- ✅ HTTPS (https://)
-- ✅ Localhost (http://localhost)
-- ✅ Archivos locales (file://)
+Aunque uses HTTPS, los navegadores modernos **bloquean el acceso a la cámara en iframes** por razones de seguridad, a menos que el iframe tenga el atributo `allow="camera"`.
 
-Rise típicamente:
-- ❌ Carga contenido en un iframe
-- ❌ Puede usar HTTP (no HTTPS)
-- ❌ Es un contexto inseguro para la API de cámara
+**El problema:**
+- ✅ Tu página: HTTPS (GitHub Pages)
+- ❌ Rise: Carga tu página en un iframe SIN `allow="camera"`
+- ❌ Navegador: Bloquea el acceso con el error:
+  ```
+  DOMException: The request is not allowed by the user agent 
+  or the platform in the current context
+  ```
+
+**Conclusión:** NO uses iframes en Rise para esta aplicación.
 
 ---
 
-## ✅ Soluciones Recomendadas
+## ✅ LA SOLUCIÓN CORRECTA (100% Funcional)
 
-### Solución 1: Usar GitHub Pages (RECOMENDADO) 🌟
+## ✅ LA SOLUCIÓN CORRECTA (100% Funcional)
 
-**Esta es la mejor solución para Rise.**
+### Usar Botón de Enlace Externo en Rise 🌟
 
-#### Paso 1: Subir a GitHub Pages
+**Esta es la ÚNICA forma que funciona correctamente.**
+
+#### Pasos para Implementar en Rise:
+
+**1. Asegúrate de tener GitHub Pages activo:**
 ```bash
-# Si aún no lo has hecho
-git add .
-git commit -m "Actualizar proyecto con manejo de errores"
-git push origin main
-
-# Ir a Settings > Pages
-# Seleccionar: Branch: main, Folder: / (root)
-# Guardar
-```
-
-#### Paso 2: Obtener la URL
-Tu proyecto estará disponible en:
-```
+# Tu URL será:
 https://TU-USUARIO.github.io
 ```
 
-#### Paso 3: Integrar en Rise
+**2. En Rise, NO uses "Embed de Contenido" ni "Iframe"**
 
-**Opción A: Enlace Externo (Más Simple)**
-1. En Rise, agrega un bloque de "Botón"
-2. Texto del botón: "Abrir Entrenador Virtual de Levantamiento"
-3. Enlace: `https://TU-USUARIO.github.io`
-4. Marcar: "Abrir en nueva ventana" ✅
+**3. En Rise, usa el bloque "BOTÓN":**
 
-**Ventajas:**
+```
+Paso a Paso:
+1. Agrega un bloque de texto explicativo:
+   "A continuación, accederás al Entrenador Virtual con IA..."
+
+2. Agrega un bloque de tipo "BOTÓN"
+
+3. Configura el botón:
+   • Texto: "🚀 Abrir Entrenador Virtual de Levantamiento"
+   • URL: https://desarrolladorvr.github.io (tu URL de GitHub Pages)
+   • ✅ IMPORTANTE: Marca "Abrir en nueva ventana"
+   • Color: Púrpura o destacado
+
+4. Agrega texto después:
+   "Después de practicar, regresa aquí para continuar..."
+```
+
+**Ventajas de este método:**
 - ✅ Funciona al 100%
-- ✅ HTTPS garantizado
-- ✅ Sin problemas de iframe
+- ✅ Sin problemas de permisos
+- ✅ Experiencia de usuario óptima
 - ✅ Fácil de actualizar
+- ✅ No requiere configuración técnica
 
-**Opción B: Iframe con URL Externa**
-1. En Rise, agrega un bloque de "Código Embebido"
-2. Inserta este código:
-
-```html
-<div style="text-align: center; padding: 20px;">
-  <p style="background: #FFD700; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
-    ⚠️ <strong>Para usar la cámara, haz clic en el botón para abrir en nueva ventana</strong>
-  </p>
-  <a href="https://TU-USUARIO.github.io" 
-     target="_blank" 
-     style="display: inline-block; background: #4A3168; color: white; padding: 15px 30px; 
-            border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 18px;">
-    📷 Abrir Entrenador Virtual
-  </a>
-</div>
+**Ejemplo visual del flujo:**
+```
+[Texto en Rise]
+↓
+[BOTÓN: 🚀 Abrir Entrenador Virtual]
+(abre en nueva ventana)
+↓
+Estudiante usa la aplicación
+↓
+Cierra ventana y regresa a Rise
+↓
+[Texto en Rise: "Continúa con..."]
 ```
 
 ---
 
-### Solución 2: Descargar y Usar Localmente 💻
+## ❌ Lo Que NO Debes Hacer
+
+### NO usar "Embed de Contenido" / Iframe
+
+Aunque Rise te permita insertar código HTML con iframes, **NO funcionará** para esta aplicación.
+
+**Este código NO funcionará:**
+```html
+<!-- ❌ NO USAR ESTO -->
+<iframe src="https://tu-usuario.github.io" 
+        width="100%" height="800px">
+</iframe>
+```
+
+**¿Por qué no funciona?**
+- Rise genera iframes sin el atributo `allow="camera"`
+- Los navegadores bloquean el acceso a la cámara
+- Verás el error: "The request is not allowed..."
+
+---
+
+## 🎯 Lo Que Verán los Estudiantes
+
+### Si se detecta iframe (por error):
+
+La aplicación ahora detecta automáticamente si está en un iframe y:
+
+1. **Banner rojo en la parte superior:**
+   ```
+   ⚠️ ¡Importante! Estás viendo esto dentro de Rise.
+   Para usar la cámara, haz clic en el botón 
+   "Abrir en Nueva Ventana" abajo.
+   ```
+
+2. **El botón de cámara cambia a:**
+   ```
+   🚀 Abrir en Nueva Ventana
+   ```
+
+3. **Modal explicativo:**
+   - Explica el problema
+   - Proporciona solución
+   - Da instrucciones al instructor
+
+**Esto significa que aunque uses iframe por error, los estudiantes sabrán qué hacer.**
+
+---
 
 **Para presentaciones o uso individual.**
 

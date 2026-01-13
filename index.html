@@ -10,6 +10,18 @@
 </head>
 <body>
   <div class="container">
+    <!-- Banner de advertencia para iframe (oculto por defecto, se muestra con JS) -->
+    <div id="iframeBanner" class="iframe-banner" style="display: none;">
+      <div class="iframe-banner-content">
+        <span class="iframe-banner-icon">⚠️</span>
+        <div class="iframe-banner-text">
+          <strong>¡Importante!</strong> Estás viendo esto dentro de Rise. 
+          Para usar la cámara, haz clic en el botón "Abrir en Nueva Ventana" abajo.
+        </div>
+        <button class="iframe-banner-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+      </div>
+    </div>
+
     <!-- Header con Logo -->
     <header class="header">
       <div class="logo-container">

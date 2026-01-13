@@ -809,3 +809,104 @@ body {
     padding: 15px;
   }
 }
+
+/* ============================================================
+   BANNER DE ADVERTENCIA PARA IFRAME
+   ============================================================ */
+
+.iframe-banner {
+  background: linear-gradient(135deg, #FF5733 0%, #C70039 100%);
+  color: white;
+  padding: 0;
+  margin: -20px -20px 20px -20px;
+  border-radius: 10px;
+  box-shadow: 0 5px 20px rgba(255, 87, 51, 0.4);
+  animation: slideDown 0.5s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.iframe-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px 25px;
+  position: relative;
+}
+
+.iframe-banner-icon {
+  font-size: 2.5rem;
+  animation: bounce 1s infinite;
+  flex-shrink: 0;
+}
+
+.iframe-banner-text {
+  flex: 1;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.iframe-banner-text strong {
+  display: block;
+  font-size: 1.2rem;
+  margin-bottom: 5px;
+}
+
+.iframe-banner-close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  font-weight: bold;
+  line-height: 1;
+  padding: 0;
+}
+
+.iframe-banner-close:hover {
+  background: rgba(255, 255, 255, 0.4);
+  transform: rotate(90deg);
+}
+
+/* Responsive para móviles */
+@media (max-width: 768px) {
+  .iframe-banner {
+    margin: -20px -10px 20px -10px;
+  }
+  
+  .iframe-banner-content {
+    padding: 15px;
+    gap: 10px;
+  }
+  
+  .iframe-banner-icon {
+    font-size: 2rem;
+  }
+  
+  .iframe-banner-text {
+    font-size: 0.9rem;
+  }
+  
+  .iframe-banner-text strong {
+    font-size: 1rem;
+  }
+}

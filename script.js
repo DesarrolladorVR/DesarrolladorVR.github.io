@@ -396,12 +396,60 @@ const isSecureContext = () => {
          window.location.protocol === 'file:';
 };
 
+// Verificar si estamos dentro de un iframe
+const isInIframe = () => {
+  try {
+    return window.self !== window.top;
+  } catch (e) {
+    return true; // Si hay error de acceso, probablemente estamos en iframe
+  }
+};
+
+// Función para abrir en nueva ventana
+function openInNewWindow() {
+  const url = window.location.href;
+  window.open(url, '_blank', 'width=1280,height=800');
+}
+
 // Configurar botón de cámara
 if (!hasGetUserMedia()) {
   console.warn("getUserMedia() no es soportado por tu navegador");
   updateStatus('❌ Cámara no disponible en este navegador');
   webcamButton.disabled = true;
   showSecurityWarning('Tu navegador no soporta acceso a la cámara. Usa Chrome, Firefox o Edge.');
+} else if (isInIframe()) {
+  // CASO ESPECÍFICO: Estamos en un iframe (Rise/Articulate)
+  console.warn("Aplicación cargada en iframe - cámara bloqueada");
+  updateStatus('⚠️ Abre en nueva ventana para usar la cámara');
+  
+  // Cambiar el comportamiento del botón
+  webcamButton.innerHTML = `
+    <span class="button-icon">🚀</span>
+    <span class="button-text">Abrir en Nueva Ventana</span>
+  `;
+  webcamButton.removeEventListener("click", enableCam);
+  webcamButton.addEventListener("click", openInNewWindow);
+  
+  // Mostrar banner de advertencia
+  const iframeBanner = document.getElementById('iframeBanner');
+  if (iframeBanner) {
+    iframeBanner.style.display = 'block';
+  }
+  
+  showSecurityWarning(
+    '🔒 DETECTADO: Estás viendo esto dentro de Rise/Articulate (iframe)\n\n' +
+    '⚠️ PROBLEMA:\n' +
+    'Los navegadores BLOQUEAN el acceso a la cámara en iframes por seguridad,\n' +
+    'incluso si la página usa HTTPS.\n\n' +
+    '✅ SOLUCIÓN SIMPLE:\n' +
+    'Haz clic en el botón "Abrir en Nueva Ventana" para usar la aplicación.\n\n' +
+    '📋 PARA INSTRUCTORES:\n' +
+    'En Rise, usa un BOTÓN DE ENLACE EXTERNO en lugar de iframe:\n' +
+    '• Bloque: Botón\n' +
+    '• URL: ' + window.location.href + '\n' +
+    '• ✅ Marcar: "Abrir en nueva ventana"\n\n' +
+    'Así los estudiantes accederán directamente sin problemas.'
+  );
 } else if (!isSecureContext()) {
   console.warn("Contexto inseguro detectado");
   updateStatus('⚠️ Contexto inseguro - Cámara bloqueada');
