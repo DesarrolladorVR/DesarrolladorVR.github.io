@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ISTEduca - Detección de Poses con IA</title>
+  <link rel="stylesheet" href="media.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="ist.ico">
+</head>
+<body>
+  <div class="container">
+    <!-- Header con Logo -->
+    <header class="header">
+      <div class="logo-container">
+        <img src="ist.png" class="logo" alt="Logotipo ISTEduca" loading="lazy">
+      </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main id="mainContent" class="main-content">
+      <!-- Botón Principal -->
+      <div class="camera-section" id="cameraSection">
+        <div class="instruction-box">
+          <h2>¡Hora de Practicar! 🚀</h2>
+          <p>Haz clic en el botón para activar tu cámara y ver la detección de poses en tiempo real.</p>
+          <div class="tips">
+            <p><strong>Tips:</strong></p>
+            <ul>
+              <li>Asegúrate de tener buena iluminación</li>
+              <li>Colócate a 1-2 metros de la cámara</li>
+              <li>Prueba diferentes poses y movimientos</li>
+            </ul>
+          </div>
+        </div>
+        
+        <button id="webcamButton" class="camera-button">
+          <span class="button-icon">📷</span>
+          <span class="button-text">Activar Cámara</span>
+        </button>
+      </div>
+
+      <!-- Vista de la Cámara -->
+      <div id="videoContainer" class="video-container hidden">
+        <div class="video-wrapper">
+          <video id="webcam" autoplay playsinline></video>
+          <canvas id="output_canvas"></canvas>
+        </div>
+        
+        <div class="pose-info" id="poseInfo">
+          <h3>📊 Información de Detección</h3>
+          <div class="stats">
+            <div class="stat-item">
+              <span class="stat-label">Poses detectadas:</span>
+              <span class="stat-value" id="poseCount">0</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Confianza:</span>
+              <span class="stat-value" id="confidence">-</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Estado:</span>
+              <span class="stat-value" id="status">Esperando...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Módulo de Entrenamiento de Levantamiento Seguro -->
+      <div id="liftingTrainer" class="lifting-trainer-section hidden">
+        <div class="trainer-header">
+          <h2>📦 Entrenador Virtual de Levantamiento Seguro</h2>
+          <p>Curso: Riesgos, Efectos en la Salud y Medidas Preventivas - Sector Alimentación</p>
+          <p class="trainer-subtitle">UNIDAD 1: Recepción y Descarga de Alimentos - Técnicas correctas de manejo manual de carga</p>
+          
+          <div class="trainer-toggle-container">
+            <label class="toggle-switch">
+              <input type="checkbox" id="trainerToggle">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">Activar Entrenador Virtual</span>
+          </div>
+        </div>
+
+        <div id="trainerPanel" class="trainer-panel">
+          <div class="feedback-container">
+            <div id="feedbackMessage" class="feedback-message">
+              Prepárate para levantar una carga. El sistema evaluará tu postura en tiempo real.
+            </div>
+          </div>
+
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon">📊</div>
+              <div class="metric-content">
+                <span class="metric-label">Puntuación General</span>
+                <span id="scoreValue" class="metric-value">0%</span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon">🔄</div>
+              <div class="metric-content">
+                <span class="metric-label">Ángulo de Espalda</span>
+                <span id="backAngle" class="metric-value">-</span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon">🦵</div>
+              <div class="metric-content">
+                <span class="metric-label">Ángulo de Rodillas</span>
+                <span id="kneeAngle" class="metric-value">-</span>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon">✋</div>
+              <div class="metric-content">
+                <span class="metric-label">Distancia Manos-Torso</span>
+                <span id="handDist" class="metric-value">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="instructions-panel">
+            <h3>📋 Instrucciones para Levantamiento Seguro:</h3>
+            <ul>
+              <li><strong>Espalda recta:</strong> Mantén la columna alineada (inclinación menor a 30°)</li>
+              <li><strong>Piernas flexionadas:</strong> Flexiona las rodillas en posición de cuclillas (ángulo menor a 140°)</li>
+              <li><strong>Carga cerca:</strong> Mantén las manos lo más cerca posible del torso</li>
+            </ul>
+            <div class="safety-tip">
+              <strong>💡 Tip de Seguridad:</strong> Nunca dobles la espalda para levantar objetos pesados. Utiliza la fuerza de tus piernas.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desafíos Interactivos -->
+      <div id="challenges" class="challenges-section hidden">
+        <h2>🎮 Desafíos de Poses</h2>
+        <p>¡Intenta realizar estas poses y observa cómo la IA las detecta!</p>
+        <div class="challenge-grid">
+          <div class="challenge-card">
+            <span class="challenge-emoji">🙌</span>
+            <h4>Brazos Arriba</h4>
+            <p>Levanta ambos brazos hacia el cielo</p>
+          </div>
+          <div class="challenge-card">
+            <span class="challenge-emoji">🧘</span>
+            <h4>Pose de Yoga</h4>
+            <p>Intenta una postura de yoga</p>
+          </div>
+          <div class="challenge-card">
+            <span class="challenge-emoji">🏃</span>
+            <h4>Simulación de Carrera</h4>
+            <p>Simula que estás corriendo</p>
+          </div>
+          <div class="challenge-card">
+            <span class="challenge-emoji">⚖️</span>
+            <h4>Equilibrio</h4>
+            <p>Párate en un solo pie</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>💜 Desarrollado para ISTEduca - Curso de Inteligencia Artificial | 2026</p>
+    </footer>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
