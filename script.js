@@ -10,11 +10,18 @@ let poseLandmarker = undefined;
 let runningMode = "VIDEO";
 let webcamRunning = false;
 let lastVideoTime = -1;
+let frameSkipCounter = 0; // Para optimización de frames
+let currentModel = 'lite'; // 'full' o 'lite'
+let armsUpDetected = false; // Control para oneshot de audio
 let detectionStats = {
   poseCount: 0,
   confidence: 0,
   status: 'Esperando...'
 };
+
+// Configuración de video optimizada
+const videoWidth = 960;
+const videoHeight = 540;
 
 // Variables para entrenamiento de levantamiento seguro
 let liftingTrainer = {
@@ -33,12 +40,14 @@ let liftingTrainer = {
 
 // Elementos del DOM
 const webcamButton = document.getElementById("webcamButton");
+const cameraSection = document.getElementById("cameraSection");
 const videoContainer = document.getElementById("videoContainer");
 const challengesSection = document.getElementById("challenges");
 const liftingTrainerSection = document.getElementById("liftingTrainer");
 const video = document.getElementById("webcam");
 const canvasElement = document.getElementById("output_canvas");
 const canvasCtx = canvasElement.getContext("2d");
+const armsUpSound = document.getElementById("armsUpSound");
 
 // Elementos de estad\u00edsticas
 const poseCountElement = document.getElementById("poseCount");
@@ -53,8 +62,8 @@ const backAngleElement = document.getElementById("backAngle");
 const kneeAngleElement = document.getElementById("kneeAngle");
 const handDistElement = document.getElementById("handDist");
 // Inicializar MediaPipe
-const createPoseLandmarker = async () => {
-  updateStatus('Cargando modelo de IA...');
+const createPoseLandmarker = async (modelType = 'lite') => {
+  updateStatus(`Cargando modelo ${modelType.toUpperCase()}...`);
   
   try {
     const vision = await FilesetResolver.forVisionTasks(
@@ -63,15 +72,16 @@ const createPoseLandmarker = async () => {
     
     poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
       baseOptions: {
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${modelType}/float16/1/pose_landmarker_${modelType}.task`,
         delegate: "GPU"
       },
       runningMode: runningMode,
-      numPoses: 2
+      numPoses: 1 // Solo 1 pose para mejor rendimiento
     });
     
-    updateStatus('Modelo cargado \u2713');
-    console.log("MediaPipe PoseLandmarker cargado correctamente");
+    currentModel = modelType;
+    updateStatus(`Modelo ${modelType.toUpperCase()} cargado ✓`);
+    console.log(`MediaPipe PoseLandmarker (${modelType}) cargado correctamente`);
   } catch (error) {
     console.error("Error al cargar MediaPipe:", error);
     updateStatus('Error al cargar el modelo');
@@ -89,6 +99,47 @@ function updateStatus(status) {
 // ============================================================
 // FUNCIONES MATEMÁTICAS PARA ANÁLISIS DE POSTURA
 // ============================================================
+
+// ============================================================
+// DETECCIÓN DE BRAZOS LEVANTADOS
+// ============================================================
+
+function detectArmsUp(landmarks) {
+  // Puntos clave: hombros (11, 12) y muñecas (15, 16)
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftWrist = landmarks[15];
+  const rightWrist = landmarks[16];
+  
+  // Verificar que los landmarks tengan buena visibilidad
+  if (leftShoulder.visibility < 0.5 || rightShoulder.visibility < 0.5 ||
+      leftWrist.visibility < 0.5 || rightWrist.visibility < 0.5) {
+    return false;
+  }
+  
+  // Calcular altura promedio de hombros
+  const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+  
+  // Verificar si ambas muñecas están por encima de los hombros
+  // (menor valor Y significa más arriba en la pantalla)
+  const leftArmUp = leftWrist.y < leftShoulder.y - 0.1;
+  const rightArmUp = rightWrist.y < rightShoulder.y - 0.1;
+  
+  return leftArmUp && rightArmUp;
+}
+
+function playArmsUpSound() {
+  if (!armsUpSound) return;
+  
+  try {
+    armsUpSound.currentTime = 0; // Reiniciar al inicio
+    armsUpSound.play().catch(err => {
+      console.log("No se pudo reproducir el audio:", err);
+    });
+  } catch (error) {
+    console.log("Error al reproducir audio:", error);
+  }
+}
 
 // Calcular ángulo entre tres puntos (en grados)
 function calculateAngle(pointA, pointB, pointC) {
@@ -496,10 +547,14 @@ async function enableCam(event) {
   if (webcamRunning === true) {
     // Detener c\u00e1mara
     webcamRunning = false;
-    webcamButton.querySelector('.button-text').textContent = "Activar C\u00e1mara";
-    webcamButton.classList.remove('active');
+    if (webcamButton && webcamButton.querySelector('.button-text')) {
+      webcamButton.querySelector('.button-text').textContent = "Activar Cámara";
+    }
+    if (webcamButton) webcamButton.classList.remove('active');
     videoContainer.classList.add('hidden');
-    challengesSection.classList.add('hidden');    if (liftingTrainerSection) liftingTrainerSection.classList.add('hidden');    updateStatus('C\u00e1mara desactivada');
+    if (challengesSection) challengesSection.classList.add('hidden');
+    if (liftingTrainerSection) liftingTrainerSection.classList.add('hidden');
+    updateStatus('Cámara desactivada');
     
     // Detener el stream
     if (video.srcObject) {
@@ -509,26 +564,33 @@ async function enableCam(event) {
   } else {
     // Iniciar c\u00e1mara
     webcamRunning = true;
-    webcamButton.querySelector('.button-text').textContent = "Desactivar C\u00e1mara";
-    webcamButton.classList.add('active');
+    if (webcamButton && webcamButton.querySelector('.button-text')) {
+      webcamButton.querySelector('.button-text').textContent = "Desactivar Cámara";
+    }
+    if (webcamButton) webcamButton.classList.add('active');
     videoContainer.classList.remove('hidden');
-    challengesSection.classList.remove('hidden');    if (liftingTrainerSection) liftingTrainerSection.classList.remove('hidden');    updateStatus('Iniciando c\u00e1mara...');
+    if (challengesSection) challengesSection.classList.remove('hidden');
+    if (liftingTrainerSection) liftingTrainerSection.classList.remove('hidden');
+    updateStatus('Iniciando cámara...');
 
-    // Configuraci\u00f3n de video
+    // Configuración de video (resolución optimizada)
     const constraints = {
       video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: videoWidth },
+        height: { ideal: videoHeight }
       }
     };
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
+      console.log('✅ Stream de cámara obtenido correctamente');
+      
       video.addEventListener("loadeddata", () => {
-        updateStatus('C\u00e1mara activa - Detectando poses...');
+        console.log('✅ Video cargado y listo');
+        updateStatus('Cámara activa - Detectando poses...');
         predictWebcam();
-      });
+      }, { once: true });
     } catch (error) {
       console.error("Error al acceder a la c\u00e1mara:", error);
       
@@ -615,7 +677,11 @@ async function predictWebcam() {
 
   let startTimeMs = performance.now();
   
-  if (lastVideoTime !== video.currentTime) {
+  // Frame skipping: procesar 1 de cada 2 frames para mejor rendimiento
+  frameSkipCounter++;
+  const shouldProcess = frameSkipCounter % 2 === 0;
+  
+  if (lastVideoTime !== video.currentTime && shouldProcess) {
     lastVideoTime = video.currentTime;
     
     try {
@@ -653,7 +719,23 @@ async function predictWebcam() {
         
         canvasCtx.restore();
         updateStats();
-                // Analizar postura si el entrenador está activo
+        
+        // Detectar brazos levantados y reproducir sonido (oneshot)
+        if (result.landmarks.length > 0) {
+          const armsUp = detectArmsUp(result.landmarks[0]);
+          
+          if (armsUp && !armsUpDetected) {
+            // Brazos levantados por primera vez
+            armsUpDetected = true;
+            playArmsUpSound();
+            console.log("🎵 ¡Brazos levantados! Sonido reproducido");
+          } else if (!armsUp && armsUpDetected) {
+            // Brazos bajados, resetear para permitir nueva detección
+            armsUpDetected = false;
+          }
+        }
+        
+        // Analizar postura si el entrenador está activo
         if (liftingTrainer.enabled && result.landmarks.length > 0) {
           const analysis = analyzeLiftingPosture(result.landmarks[0]);
           if (analysis) {
@@ -679,7 +761,50 @@ async function predictWebcam() {
 
 // Inicializar la aplicaci\u00f3n
 createPoseLandmarker();
+// Auto-iniciar cámara cuando el modelo esté listo
+async function autoStartCamera() {
+  const loadingOverlay = document.getElementById('loadingOverlay');
+  const loadingSubtext = document.getElementById('loadingSubtext');
+  
+  console.log('🔄 Iniciando proceso de auto-start...');
+  
+  // Esperar a que el modelo esté cargado
+  const checkModel = setInterval(async () => {
+    if (poseLandmarker) {
+      clearInterval(checkModel);
+      console.log('✅ Modelo cargado, preparando cámara...');
+      
+      // Actualizar mensaje
+      if (loadingSubtext) loadingSubtext.textContent = 'Iniciando cámara...';
+      
+      // Esperar 500ms más para asegurar que todo esté listo
+      setTimeout(async () => {
+        console.log('🎥 Iniciando cámara automáticamente...');
+        try {
+          await enableCam();
+          console.log('✅ Cámara iniciada correctamente');
+          
+          // Ocultar loading con transición
+          if (loadingOverlay) {
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => {
+              loadingOverlay.style.display = 'none';
+              console.log('✅ Loading overlay oculto');
+            }, 300);
+          }
+        } catch (error) {
+          console.error('❌ Error al auto-iniciar cámara:', error);
+          // Ocultar loading y mostrar botón manual
+          if (loadingOverlay) loadingOverlay.style.display = 'none';
+          if (cameraSection) cameraSection.style.display = 'block';
+        }
+      }, 500);
+    }
+  }, 100);
+}
 
+// Iniciar cámara automáticamente
+autoStartCamera();
 // Mensaje de bienvenida en consola
 console.log('%c\ud83c\udf93 ISTEduca - Detecci\u00f3n de Poses con IA ', 
   'background: linear-gradient(135deg, #C74398, #4A3168); color: white; padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 5px;');
@@ -704,4 +829,82 @@ if (trainerToggle) {
 }
 
 console.log('%c Modulo: Entrenamiento de Levantamiento Seguro', 
-  'color: #C74398; font-size: 12px; font-weight: bold;');
+  'color: #C74398; font-size: 12px; font-weight: bold;');// ============================================================
+// SISTEMA DE CONFIGURACIÓN DE RENDIMIENTO
+// ============================================================
+
+// Configurar selector de modelo
+const modelRadios = document.querySelectorAll('input[name="modelQuality"]');
+const applyModelButton = document.getElementById('applyModelChange');
+let pendingModelChange = null;
+
+modelRadios.forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const selectedModel = e.target.value;
+    
+    if (selectedModel !== currentModel) {
+      // Hay un cambio pendiente
+      pendingModelChange = selectedModel;
+      
+      if (applyModelButton) {
+        applyModelButton.style.display = 'block';
+        applyModelButton.textContent = `Cambiar a ${selectedModel.toUpperCase()} (${webcamRunning ? 'reinicia cámara' : 'aplicar'})`;
+      }
+    } else {
+      // Volvió al modelo actual
+      pendingModelChange = null;
+      if (applyModelButton) {
+        applyModelButton.style.display = 'none';
+      }
+    }
+  });
+});
+
+// Aplicar cambio de modelo
+if (applyModelButton) {
+  applyModelButton.addEventListener('click', async () => {
+    if (!pendingModelChange) return;
+    
+    // Si la cámara está activa, hay que reiniciarla
+    const wasRunning = webcamRunning;
+    
+    if (wasRunning) {
+      // Detener cámara
+      updateStatus('Deteniendo cámara...');
+      webcamRunning = false;
+      webcamButton.querySelector('.button-text').textContent = "Activar Cámara";
+      webcamButton.classList.remove('active');
+      videoContainer.classList.add('hidden');
+      challengesSection.classList.add('hidden');
+      if (liftingTrainerSection) liftingTrainerSection.classList.add('hidden');
+      
+      // Detener el stream
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      }
+      
+      // Esperar un momento
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // Cargar nuevo modelo
+    updateStatus(`Cambiando a modelo ${pendingModelChange.toUpperCase()}...`);
+    await createPoseLandmarker(pendingModelChange);
+    
+    // Ocultar botón de aplicar
+    applyModelButton.style.display = 'none';
+    pendingModelChange = null;
+    
+    // Reiniciar cámara si estaba activa
+    if (wasRunning) {
+      updateStatus('Reiniciando cámara...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      enableCam();
+    } else {
+      updateStatus(`Modelo ${currentModel.toUpperCase()} listo`);
+    }
+    
+    console.log(`✅ Modelo cambiado a: ${currentModel.toUpperCase()}`);
+  });
+}
