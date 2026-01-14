@@ -5,6 +5,13 @@ import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0"
 
 const { PoseLandmarker, FilesetResolver, DrawingUtils } = vision;
 
+// Configuración de Colores de Tracking
+const TRACKING_COLORS = {
+  LANDMARK_BORDER: '#ff00a6', // Pink IST
+  LANDMARK_FILL: '#7300ff',   // Purple IST
+  CONNECTOR: '#ff00a6'        // Pink IST
+};
+
 // Variables globales
 let poseLandmarker = undefined;
 let runningMode = "VIDEO";
@@ -18,6 +25,306 @@ let detectionStats = {
   confidence: 0,
   status: 'Esperando...'
 };
+
+// ============================================================
+// GESTOR DE EXPERIENCIA (NUEVO)
+// ============================================================
+// ============================================================
+// FUNCIONES DE DETECCIÓN (NUEVAS)
+// ============================================================
+
+function detectStraightBack(landmarks) {
+  // Angulo de espalda < 20 grados es muy recto
+  const angle = calculateBackAngle(landmarks);
+  return angle < 20; 
+}
+
+function detectOpenPosture(landmarks) {
+  const leftWrist = landmarks[15];
+  const rightWrist = landmarks[16];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+
+  // Manos visibles
+  if (leftWrist.visibility < 0.5 || rightWrist.visibility < 0.5) return false;
+
+  // Manos abajo de hombros
+  if (leftWrist.y < leftShoulder.y || rightWrist.y < rightShoulder.y) return false;
+
+  // Manos separadas (no cruzadas)
+  // Distancia X entre muñecas razonable (> ancho de hombros/2)
+  const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+  const wristDist = Math.abs(leftWrist.x - rightWrist.x);
+
+  return wristDist > shoulderWidth * 0.5;
+}
+
+function detectSmile(landmarks) {
+  // Aproximación con PoseLandmarks (Mouth corners 9, 10 vs Eyes 3, 6)
+  const mouthLeft = landmarks[9];
+  const mouthRight = landmarks[10];
+  
+  // Usar pupilas o ojos externos
+  const eyeLeft = landmarks[3]; // Outer
+  const eyeRight = landmarks[6]; // Outer
+
+  if (!mouthLeft || !mouthRight || !eyeLeft || !eyeRight) return false;
+
+  const mouthWidth = Math.hypot(mouthLeft.x - mouthRight.x, mouthLeft.y - mouthRight.y);
+  const eyeWidth = Math.hypot(eyeLeft.x - eyeRight.x, eyeLeft.y - eyeRight.y);
+
+  // Ratio experimental
+  const ratio = mouthWidth / eyeWidth;
+  
+  return ratio > 0.55; // Ajustable
+}
+
+const ExperienceManager = {
+  currentPhase: 0, 
+  phaseStartTime: 0,
+  audioFinishedTime: 0, 
+  isAudioPlaying: false, 
+  holdStartTime: 0, 
+  currentAudio: null,
+  
+  phases: {
+      1: { 
+        id: 1, 
+        name: 'Introducción', 
+        text: '"Hola. Te contamos que, según la neurociencia, aprender no es solo pensar; es también respirar, sentir, atender y conectarse con el propio cuerpo. Por esto, te invitamos a vivir una pequeña experiencia que facilite tu aprendizaje."',
+        audioSrc: 'voiceoff/intro.wav', 
+        nextTrigger: 'auto_after_audio' 
+      },
+      2: { 
+        id: 2, 
+        name: 'Postura', 
+        text: '"Comencemos. Siéntate cómodamente, con los pies afirmados en el suelo y tu espalda derecha."',
+        audioSrc: 'voiceoff/postura_1.wav', 
+        trigger: 'pose', 
+        check: detectStraightBack,
+        holdDuration: 2000 // Mantener postura recta 2 segundos
+      },
+      3: { 
+        id: 3, 
+        name: 'Validación Postura', 
+        text: '"Muy bien, mantén esa postura."',
+        audioSrc: 'voiceoff/postura_2.wav', 
+        trigger: 'time',
+        delay: 2000 // Esperar 2s DESPUES del audio
+      },
+      4: { 
+        id: 4, 
+        name: 'Respiración', 
+        text: '"Ahora, realiza una o dos respiraciones profundas y lentas. Inhalando suavemente por la nariz... y exhalando por la boca. Siente cómo tu cuerpo se oxigena."',
+        audioSrc: 'voiceoff/respiracion.wav', 
+        trigger: 'time', 
+        delay: 6000 // 6s de silencio para respirar despues de instrucciones
+      },
+      5: { 
+        id: 5, 
+        name: 'Conexión', 
+        text: '"En este estado de calma, conéctate con una emoción de apertura y confianza. Visualiza esa seguridad que ayuda a tu proceso de aprendizaje."',
+        audioSrc: 'voiceoff/conexion.wav', 
+        trigger: 'pose', 
+        check: detectOpenPosture,
+        holdDuration: 1500
+      },
+      6: { 
+        id: 6, 
+        name: 'Gesto Final', 
+        text: '"Finalmente, mira la pantalla y sonríe con ganas."',
+        audioSrc: 'voiceoff/sonrisa.wav', 
+        trigger: 'pose', 
+        check: detectSmile,
+        holdDuration: 1000 // Mantener sonrisa 1s
+      },
+      7: { 
+        id: 7, 
+        name: 'Cierre', 
+        text: '"Ahora que escuchaste la campana, estás listo o lista para comenzar. ¡Éxito en tu jornada!"',
+        audioSrc: 'voiceoff/cierre.wav', 
+        effectSrc: 'voiceoff/campana.wav', 
+        nextTrigger: 'end' 
+      }
+  },
+
+  playAudio(src) {
+      if (this.currentAudio) {
+          this.currentAudio.pause();
+          this.currentAudio.currentTime = 0;
+      }
+      this.isAudioPlaying = true; // Bloqueo de triggers
+      
+      return new Promise((resolve) => {
+        this.currentAudio = new Audio(src);
+        
+        this.currentAudio.onended = () => {
+             this.isAudioPlaying = false; // Desbloqueo
+             this.audioFinishedTime = Date.now(); // Marca de tiempo
+             console.log(`🔊 Audio finished: ${src}`);
+             resolve();
+        };
+        
+        this.currentAudio.onerror = () => { 
+            console.log('Error audio', src); 
+            this.isAudioPlaying = false;
+            this.audioFinishedTime = Date.now();
+            resolve(); 
+        };
+        
+        this.currentAudio.play().catch(e => { 
+            console.log("Audio play error:", e); 
+            this.isAudioPlaying = false;
+            this.audioFinishedTime = Date.now();
+            resolve(); 
+        });
+      });
+  },
+
+  playEffect(src) {
+    const effect = new Audio(src);
+    effect.play().catch(e => console.log("Effect play error:", e));
+  },
+
+  update(landmarks) {
+      const now = Date.now();
+      
+      // Fase 0 -> 1: Detección inicial (Sin cambios)
+      if (this.currentPhase === 0) {
+          if (landmarks) {
+              this.transitionTo(1);
+          }
+          return;
+      }
+
+      // NO procesar triggers si el audio está sonando
+      if (this.isAudioPlaying) {
+          this.holdStartTime = 0; 
+          return;
+      }
+
+      const phase = this.phases[this.currentPhase];
+      if (!phase) return;
+      
+      // Lógica Trigger: POSE
+      if (phase.trigger === 'pose' && phase.check) {
+          const isPoseCorrect = phase.check(landmarks);
+          
+          if (isPoseCorrect) {
+              if (this.holdStartTime === 0) {
+                  this.holdStartTime = now; // Empezar a contar
+              }
+              
+              const holdDuration = phase.holdDuration || 500; // Default 0.5s
+              const heldTime = now - this.holdStartTime;
+              
+              if (heldTime >= holdDuration) {
+                  this.transitionTo(this.currentPhase + 1);
+              }
+          } else {
+              this.holdStartTime = 0; // Reset si pierde la pose
+          }
+
+      } 
+      // Lógica Trigger: TIME
+      else if (phase.trigger === 'time') {
+          // Contamos el delay DESDE que terminó el audio
+          const timeSinceAudio = now - this.audioFinishedTime;
+          if (timeSinceAudio > phase.delay) {
+               this.transitionTo(this.currentPhase + 1);
+          }
+      }
+  },
+
+  async transitionTo(phaseId) {
+      if (this.currentPhase === phaseId) return;
+      
+      this.currentPhase = phaseId;
+      this.phaseStartTime = Date.now();
+      this.holdStartTime = 0; // Reset hold
+      console.log(`🌟 Transición de Fase: ${phaseId}`);
+      
+      const phase = this.phases[phaseId];
+      if (!phase) return;
+      
+      showPhaseNotification(phase.name);
+      updateSubtitle(phase.text);
+
+      if (phase.effectSrc) {
+        this.playEffect(phase.effectSrc);
+      }
+
+      if (phase.audioSrc) {
+          await this.playAudio(phase.audioSrc);
+          
+          // Auto-advance triggers
+          if (phase.nextTrigger === 'auto_after_audio') {
+             this.transitionTo(phaseId + 1);
+          }
+      } else {
+          // Fase muda (raro, pero posible), marcar audio finished ya
+          this.audioFinishedTime = Date.now();
+          this.isAudioPlaying = false;
+      }
+  },
+  
+  reset() {
+      this.currentPhase = 0;
+      this.isAudioPlaying = false;
+      if (this.currentAudio) {
+          this.currentAudio.pause();
+          this.currentAudio = null;
+      }
+      updateSubtitle('');
+  }
+};
+
+function updateSubtitle(text) {
+  const subtitleEl = document.getElementById('subtitleText');
+  if (subtitleEl) {
+    if (text) {
+      subtitleEl.textContent = text;
+      subtitleEl.scrollTop = 0;
+      subtitleEl.classList.add('active');
+    } else {
+      subtitleEl.classList.remove('active');
+      setTimeout(() => subtitleEl.textContent = '', 500);
+    }
+  }
+}
+
+function showPhaseNotification(text) {
+    // Reutilizar el status u otro elemento UI
+    const notif = document.createElement('div');
+    notif.style.position = 'fixed';
+    notif.style.bottom = '20px';
+    notif.style.right = '20px';
+    notif.style.background = '#4A3168';
+    notif.style.color = 'white';
+    notif.style.padding = '15px 25px';
+    notif.style.borderRadius = '10px';
+    notif.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+    notif.style.zIndex = '1000';
+    notif.style.animation = 'fadeIn 0.5s';
+    notif.innerHTML = `<strong>Fase Actual:</strong><br>${text}`;
+    document.body.appendChild(notif);
+    
+    setTimeout(() => {
+        notif.style.opacity = '0';
+        notif.style.transition = 'opacity 0.5s';
+        setTimeout(() => notif.remove(), 500);
+    }, 4000);
+}
+
+function selectModelByPerformance() {
+  const cores = navigator.hardwareConcurrency || 4;
+  const memory = navigator.deviceMemory || 4;
+  const isMobile = /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent);
+
+  if (!isMobile && cores >= 8 && memory >= 8) return 'full';
+  if (!isMobile && cores >= 6 && memory >= 6) return 'full';
+  return 'lite';
+}
 
 // Configuración de video optimizada
 const videoWidth = 960;
@@ -126,6 +433,39 @@ function detectArmsUp(landmarks) {
   const rightArmUp = rightWrist.y < rightShoulder.y - 0.1;
   
   return leftArmUp && rightArmUp;
+}
+
+function detectHandsOnChest(landmarks) {
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftWrist = landmarks[15];
+  const rightWrist = landmarks[16];
+
+  // Centro del pecho (aprox)
+  const chestX = (leftShoulder.x + rightShoulder.x) / 2;
+  const chestY = (leftShoulder.y + rightShoulder.y) / 2 + 0.15; // Un poco abajo de los hombros
+
+  // Distancia max permitida
+  const threshold = 0.2; 
+
+  const leftDist = Math.hypot(leftWrist.x - chestX, leftWrist.y - chestY);
+  const rightDist = Math.hypot(rightWrist.x - chestX, rightWrist.y - chestY);
+
+  return leftDist < threshold && rightDist < threshold;
+}
+
+function detectNeutral(landmarks) {
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftWrist = landmarks[15];
+  const rightWrist = landmarks[16];
+
+  // Muñecas abajo de las caderas (aprox) o simplemente abajo de los hombros significativamente
+  // Y aumenta hacia abajo.
+  const handsDown = leftWrist.y > leftShoulder.y + 0.3 && rightWrist.y > rightShoulder.y + 0.3;
+  const handsCloseToBody = Math.abs(leftWrist.x - leftShoulder.x) < 0.2 && Math.abs(rightWrist.x - rightShoulder.x) < 0.2;
+
+  return handsDown && handsCloseToBody;
 }
 
 function playArmsUpSound() {
@@ -734,8 +1074,8 @@ async function predictWebcam() {
           
           // Dibujar puntos con colores personalizados
           drawingUtils.drawLandmarks(landmark, {
-            color: '#C74398',
-            fillColor: '#4A3168',
+            color: TRACKING_COLORS.LANDMARK_BORDER,
+            fillColor: TRACKING_COLORS.LANDMARK_FILL,
             radius: (data) => DrawingUtils.lerp(data.from.z, -0.15, 0.1, 8, 2)
           });
           
@@ -743,13 +1083,22 @@ async function predictWebcam() {
           drawingUtils.drawConnectors(
             landmark, 
             PoseLandmarker.POSE_CONNECTIONS,
-            { color: '#C74398', lineWidth: 3 }
+            { color: TRACKING_COLORS.CONNECTOR, lineWidth: 3 }
           );
         }
         
         canvasCtx.restore();
         updateStats();
         
+        // GESTOR DE EXPERIENCIA (Actualización)
+        if (result.landmarks.length > 0) {
+           ExperienceManager.update(result.landmarks[0]);
+        } else {
+           // Si se pierde el usuario mucho tiempo, ¿resetear?
+           // Por ahora no reseteamos para no cortar la experiencia si se mueve un poco.
+        }
+
+        /* LÓGICA ANTERIOR COMENTADA PARA EVITAR CONFLICTOS
         // Detectar brazos levantados y reproducir sonido (oneshot)
         if (result.landmarks.length > 0) {
           const armsUp = detectArmsUp(result.landmarks[0]);
@@ -764,6 +1113,7 @@ async function predictWebcam() {
             armsUpDetected = false;
           }
         }
+        */
         
         // Analizar postura si el entrenador está activo
         if (liftingTrainer.enabled && result.landmarks.length > 0) {
@@ -789,8 +1139,10 @@ async function predictWebcam() {
   }
 }
 
-// Inicializar la aplicaci\u00f3n
-createPoseLandmarker();
+// Inicializar la aplicación con selección automática según rendimiento del navegador
+const autoSelectedModel = selectModelByPerformance();
+console.log('⚙️ Modelo seleccionado automáticamente:', autoSelectedModel);
+createPoseLandmarker(autoSelectedModel);
 // Auto-iniciar cámara cuando el modelo esté listo
 async function autoStartCamera() {
   const loadingOverlay = document.getElementById('loadingOverlay');
@@ -836,7 +1188,7 @@ async function autoStartCamera() {
 autoStartCamera();
 // Mensaje de bienvenida en consola
 console.log('%c\ud83c\udf93 ISTEduca - Detecci\u00f3n de Poses con IA ', 
-  'background: linear-gradient(135deg, #C74398, #4A3168); color: white; padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 5px;');
+  'background: linear-gradient(135deg, #ff00a6, #7300ff); color: white; padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 5px;');
 console.log('%cPowered by MediaPipe \ud83e\udd16', 
   'color: #4A3168; font-size: 14px; font-weight: bold;');
 
@@ -858,7 +1210,7 @@ if (trainerToggle) {
 }
 
 console.log('%c Modulo: Entrenamiento de Levantamiento Seguro', 
-  'color: #C74398; font-size: 12px; font-weight: bold;');// ============================================================
+  'color: #ff00a6; font-size: 12px; font-weight: bold;');// ============================================================
 // SISTEMA DE CONFIGURACIÓN DE RENDIMIENTO
 // ============================================================
 

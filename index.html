@@ -4,17 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
-  <title>ISTEduca - Detección de Poses con IA</title>
+  <title>ISTEduca - Pausa Saludable</title>
   <link rel="stylesheet" href="media.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
   <link rel="icon" href="ist.ico">
 </head>
 <body>
   <div class="container">
     <!-- Audio para feedback -->
     <audio id="armsUpSound" preload="auto">
-      <source src="arms-up-sound.mp3" type="audio/mpeg">
-      <source src="arms-up-sound.ogg" type="audio/ogg">
       <source src="arms-up-sound.wav" type="audio/wav">
     </audio>
     
@@ -60,41 +58,15 @@
           <video id="webcam" autoplay playsinline></video>
           <canvas id="output_canvas"></canvas>
         </div>
-        
-        <div class="pose-info" id="poseInfo">
-          <!-- Estado Compacto -->
-          <div class="status-compact">
-            <span class="status-label">Estado:</span>
-            <span class="status-value" id="status">Esperando...</span>
-          </div>
-          
-          <!-- Panel de Configuración de Rendimiento -->
-          <div class="performance-settings">
-            <h4>⚙️ Configuración de Rendimiento</h4>
-            <div class="model-selector">
-              <label class="model-option">
-                <input type="radio" name="modelQuality" value="lite" checked>
-                <span class="model-label">🚀 Lite (Rápido)</span>
-              </label>
-              <label class="model-option">
-                <input type="radio" name="modelQuality" value="full">
-                <span class="model-label">🎯 Full (Preciso)</span>
-              </label>
-            </div>
-            <button id="applyModelChange" class="apply-model-btn" style="display: none;">Aplicar Cambio</button>
-            <p class="model-info">💡 Lite: más rápido, Full: más preciso</p>
-          </div>
-        </div>
       </div>
 
-      </div>
-
-      <!-- Desafíos Interactivos (OCULTO) -->
+      <!-- Texto de Guion / Subtítulos -->
+      <div id="subtitleText" class="subtitle-text"></div>
     </main>
 
     <!-- Footer -->
     <footer class="footer">
-      <p>💜 Desarrollado para ISTEduca - Curso de Inteligencia Artificial | 2026</p>
+      <p>💜 Desarrollado por ISTEduca - Todos juntos cuidandonos | 2026</p>
     </footer>
   </div>
 
