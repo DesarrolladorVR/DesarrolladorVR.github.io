@@ -582,7 +582,22 @@ async function enableCam(event) {
     };
 
     try {
+      // Actualizar loading: solicitar permiso
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const loadingText = document.getElementById('loadingText');
+      const loadingSubtext = document.getElementById('loadingSubtext');
+      const loadingIcon = document.querySelector('.loading-icon');
+      
+      if (loadingIcon) loadingIcon.className = 'loading-spinner';
+      if (loadingText) loadingText.textContent = 'Accediendo a la cámara...';
+      if (loadingSubtext) loadingSubtext.innerHTML = 'Esperando permiso del navegador...';
+      
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Actualizar loading: cámara obtenida
+      if (loadingText) loadingText.textContent = 'Cargando cámara...';
+      if (loadingSubtext) loadingSubtext.innerHTML = 'Inicializando sistema de detección';
+      
       video.srcObject = stream;
       console.log('✅ Stream de cámara obtenido correctamente');
       
@@ -592,71 +607,86 @@ async function enableCam(event) {
         predictWebcam();
       }, { once: true });
     } catch (error) {
-      console.error("Error al acceder a la c\u00e1mara:", error);
+      console.error("❌ Error al acceder a la cámara:", error);
+      
+      // Mantener el loading overlay visible y mostrar error en el mismo diseño
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const loadingText = document.getElementById('loadingText');
+      const loadingSubtext = document.getElementById('loadingSubtext');
+      const loadingIcon = document.querySelector('.loading-icon, .loading-spinner');
       
       // Determinar el tipo de error y mostrar mensaje específico
-      let errorMessage = '';
-      let detailedMessage = '';
+      let errorIcon = '❌';
+      let errorTitle = '';
+      let errorInstructions = '';
       
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        errorMessage = '❌ Permiso denegado';
-        detailedMessage = 'Debes permitir el acceso a la cámara cuando el navegador lo solicite.\n\n' +
-                         'Para solucionarlo:\n' +
-                         '1. Busca el ícono 🔒 o 🎥 en la barra de direcciones\n' +
-                         '2. Permite el acceso a la cámara\n' +
-                         '3. Recarga la página';
+        errorIcon = '🔒';
+        errorTitle = 'Permiso de cámara denegado';
+        errorInstructions = 'Para usar la detección de poses, necesitas permitir el acceso a la cámara.<br><br>' +
+                           '<strong>Cómo solucionarlo:</strong><br>' +
+                           '1. Busca el ícono 🔒 o 🎥 en la barra de direcciones<br>' +
+                           '2. Haz clic y selecciona "Permitir"<br>' +
+                           '3. Recarga la página (F5)';
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        errorMessage = '❌ Cámara no encontrada';
-        detailedMessage = 'No se detectó ninguna cámara conectada.\n\n' +
-                         'Verifica que:\n' +
-                         '1. Tu cámara esté conectada\n' +
-                         '2. Los drivers estén instalados\n' +
-                         '3. Ninguna otra aplicación esté usando la cámara';
+        errorIcon = '📷';
+        errorTitle = 'No se encontró ninguna cámara';
+        errorInstructions = '<strong>Verifica que:</strong><br>' +
+                           '• Tu cámara esté conectada<br>' +
+                           '• Los drivers estén instalados correctamente<br>' +
+                           '• La cámara funcione en otras aplicaciones';
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        errorMessage = '❌ Cámara en uso';
-        detailedMessage = 'La cámara está siendo usada por otra aplicación.\n\n' +
-                         'Cierra otras aplicaciones que puedan estar usando la cámara:\n' +
-                         '• Zoom, Teams, Skype\n' +
-                         '• Otras pestañas del navegador\n' +
-                         '• Aplicaciones de fotos/video';
+        errorIcon = '⚠️';
+        errorTitle = 'Cámara en uso';
+        errorInstructions = 'La cámara está siendo usada por otra aplicación.<br><br>' +
+                           '<strong>Cierra estas aplicaciones:</strong><br>' +
+                           '• Zoom, Teams, Skype, Google Meet<br>' +
+                           '• Otras pestañas del navegador con cámara<br>' +
+                           '• Aplicaciones de fotos o video';
       } else if (error.name === 'SecurityError') {
-        errorMessage = '🔒 Error de seguridad';
+        errorIcon = '🔐';
+        errorTitle = 'Error de seguridad';
         
-        // Detectar si es iframe
         const inIframe = isInIframe();
-        const iframeNote = inIframe ? 
-          '\n\n✅ SOLUCIÓN PARA RISE 360:\n' +
-          'Pide a tu profesor que:\n' +
-          '1. Reemplace el iframe por un botón con enlace externo\n' +
-          '2. O use esta URL en el iframe con permisos:\n' +
-          '<iframe ... allow="camera *; microphone *" sandbox="allow-same-origin allow-scripts allow-forms"></iframe>\n\n' +
-          '⚠️ O haz clic en "Abrir en Nueva Ventana" en el botón.'
-          : '';
+        errorInstructions = 'Los navegadores requieren <strong>HTTPS</strong> para acceder a la cámara.<br><br>' +
+                           'Esta página usa: <code>' + window.location.protocol + '//' + window.location.host + '</code><br><br>';
         
-        detailedMessage = 'Por razones de seguridad, no se puede acceder a la cámara.\n\n' +
-                         '⚠️ REQUISITOS:\n' +
-                         'Los navegadores requieren HTTPS para acceder a la cámara.\n' +
-                         'Esta página usa: ' + window.location.protocol + '//' + window.location.host + '\n\n' +
-                         'Soluciones:\n' +
-                         '1. Usa el enlace directo (abre en nueva ventana)\n' +
-                         '2. Descarga el .zip y abre index.html localmente\n' +
-                         iframeNote;
+        if (inIframe) {
+          errorInstructions += '<strong>Solución para Rise 360:</strong><br>' +
+                              '• Haz clic en "Abrir en Nueva Ventana"<br>' +
+                              '• O pide al instructor que configure permisos del iframe';
+        } else {
+          errorInstructions += '<strong>Soluciones:</strong><br>' +
+                              '1. Usa HTTPS en lugar de HTTP<br>' +
+                              '2. Abre desde localhost<br>' +
+                              '3. Descarga y abre el archivo localmente';
+        }
       } else {
-
-        errorMessage = '❌ Error al acceder a la cámara';
-        detailedMessage = 'Error: ' + error.name + '\n' + error.message + '\n\n' +
-                         'Contexto: ' + window.location.protocol + '//' + window.location.host;
+        errorIcon = '❌';
+        errorTitle = 'Error al acceder a la cámara';
+        errorInstructions = 'Error: <code>' + error.name + '</code><br>' +
+                           error.message + '<br><br>' +
+                           'Intenta recargar la página o usa otro navegador.';
       }
       
-      updateStatus(errorMessage);
-      showSecurityWarning(detailedMessage);
+      // Actualizar el loading overlay con el mensaje de error
+      if (loadingIcon) {
+        loadingIcon.className = 'loading-icon';
+        loadingIcon.textContent = errorIcon;
+      }
+      if (loadingText) loadingText.textContent = errorTitle;
+      if (loadingSubtext) loadingSubtext.innerHTML = errorInstructions;
+      
+      // Asegurar que el overlay permanezca visible
+      if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+        loadingOverlay.style.opacity = '1';
+      }
       
       webcamRunning = false;
-      webcamButton.querySelector('.button-text').textContent = "Activar Cámara";
-      webcamButton.classList.remove('active');
-      videoContainer.classList.add('hidden');
-      challengesSection.classList.add('hidden');
-      if (liftingTrainerSection) liftingTrainerSection.classList.add('hidden');
+      updateStatus(errorTitle);
+      
+      console.log('ℹ️ Error mostrado en loading overlay');
     }
   }
 }
@@ -774,8 +804,8 @@ async function autoStartCamera() {
       clearInterval(checkModel);
       console.log('✅ Modelo cargado, preparando cámara...');
       
-      // Actualizar mensaje
-      if (loadingSubtext) loadingSubtext.textContent = 'Iniciando cámara...';
+      // Actualizar mensaje inicial
+      if (loadingSubtext) loadingSubtext.innerHTML = 'Modelo de IA cargado. Preparando acceso a cámara...';
       
       // Esperar 500ms más para asegurar que todo esté listo
       setTimeout(async () => {
@@ -794,9 +824,8 @@ async function autoStartCamera() {
           }
         } catch (error) {
           console.error('❌ Error al auto-iniciar cámara:', error);
-          // Ocultar loading y mostrar botón manual
-          if (loadingOverlay) loadingOverlay.style.display = 'none';
-          if (cameraSection) cameraSection.style.display = 'block';
+          // El error ya se maneja dentro de enableCam mostrándolo en el loading overlay
+          // No necesitamos hacer nada adicional aquí
         }
       }, 500);
     }

@@ -38,9 +38,9 @@
     <!-- Sistema de Carga -->
     <div id="loadingOverlay" class="loading-overlay">
       <div class="loading-container">
-        <div class="loading-spinner"></div>
-        <p class="loading-text">Cargando cámara...</p>
-        <p class="loading-subtext" id="loadingSubtext">Inicializando sistema de detección</p>
+        <div class="loading-icon">📷</div>
+        <p class="loading-text" id="loadingText">Preparando cámara</p>
+        <p class="loading-subtext" id="loadingSubtext">El navegador solicitará permiso para acceder a tu cámara.<br>Por favor, <strong>acepta el permiso</strong> cuando aparezca.</p>
       </div>
     </div>
 
@@ -62,20 +62,10 @@
         </div>
         
         <div class="pose-info" id="poseInfo">
-          <h3>📊 Información de Detección</h3>
-          <div class="stats">
-            <div class="stat-item">
-              <span class="stat-label">Poses detectadas:</span>
-              <span class="stat-value" id="poseCount">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Confianza:</span>
-              <span class="stat-value" id="confidence">-</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Estado:</span>
-              <span class="stat-value" id="status">Esperando...</span>
-            </div>
+          <!-- Estado Compacto -->
+          <div class="status-compact">
+            <span class="status-label">Estado:</span>
+            <span class="status-value" id="status">Esperando...</span>
           </div>
           
           <!-- Panel de Configuración de Rendimiento -->

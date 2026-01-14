@@ -235,6 +235,31 @@ body {
   font-size: 1rem;
 }
 
+/* Estado Compacto */
+.status-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.status-label {
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.status-value {
+  color: var(--pink-ist);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -987,6 +1012,23 @@ body {
   padding: 40px;
 }
 
+.loading-icon {
+  font-size: 4rem;
+  margin: 0 auto 20px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% { 
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
 .loading-spinner {
   width: 60px;
   height: 60px;
@@ -1015,7 +1057,23 @@ body {
   color: #666;
   margin: 0;
   font-weight: 400;
+  line-height: 1.6;
 }
+
+.loading-subtext strong {
+  color: var(--pink-ist);
+  font-weight: 600;
+}
+
+.loading-subtext code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #333;
+}
+
 /* Responsive para m�viles */
 @media (max-width: 768px) {
   .iframe-banner {
