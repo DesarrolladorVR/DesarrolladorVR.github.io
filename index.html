@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
   <title>ISTEduca - Pausa Saludable</title>
-  <link rel="stylesheet" href="media.css">
+  <link rel="stylesheet" href="src/css/media.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="icon" href="ist.ico">
+  <link rel="icon" href="assets/images/ist.ico">
 </head>
 <body>
   <div class="container">
     <!-- Audio para feedback -->
     <audio id="armsUpSound" preload="auto">
-      <source src="arms-up-sound.wav" type="audio/wav">
+      <source src="assets/audio/arms-up-sound.wav" type="audio/wav">
     </audio>
     
     <!-- Banner de advertencia para iframe (oculto por defecto, se muestra con JS) -->
@@ -30,7 +30,7 @@
 
     <!-- Header con Logo -->
     <header class="header">
-      <img src="ist.png" class="logo" alt="Logotipo ISTEduca" loading="lazy">
+      <img src="assets/images/ist.png" class="logo" alt="Logotipo ISTEduca" loading="lazy">
     </header>
 
     <!-- Sistema de Carga -->
@@ -70,6 +70,6 @@
     </footer>
   </div>
 
-  <script type="module" src="script.js"></script>
+  <script type="module" src="src/js/script.js"></script>
 </body>
 </html>

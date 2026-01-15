@@ -416,6 +416,8 @@ const ExperienceManager = {
   }
 };
 
+// Función para actualizar subtítulos
+
 function updateSubtitle(text) {
   const subtitleEl = document.getElementById('subtitleText');
   if (subtitleEl) {

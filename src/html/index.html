@@ -1,0 +1,75 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Permissions-Policy" content="camera=*, microphone=*">
+  <title>ISTEduca - Pausa Saludable</title>
+  <link rel="stylesheet" href="media.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="assets/images/ist.ico">
+</head>
+<body>
+  <div class="container">
+    <!-- Audio para feedback -->
+    <audio id="armsUpSound" preload="auto">
+      <source src="arms-up-sound.wav" type="audio/wav">
+    </audio>
+    
+    <!-- Banner de advertencia para iframe (oculto por defecto, se muestra con JS) -->
+    <div id="iframeBanner" class="iframe-banner" style="display: none;">
+      <div class="iframe-banner-content">
+        <span class="iframe-banner-icon">⚠️</span>
+        <div class="iframe-banner-text">
+          <strong>¡Importante!</strong> Estás viendo esto dentro de Rise. 
+          Para usar la cámara, haz clic en el botón "Abrir en Nueva Ventana" abajo.
+        </div>
+        <button class="iframe-banner-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+      </div>
+    </div>
+
+    <!-- Header con Logo -->
+    <header class="header">
+      <img src="ist.png" class="logo" alt="Logotipo ISTEduca" loading="lazy">
+    </header>
+
+    <!-- Sistema de Carga -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-container">
+        <div class="loading-icon">📷</div>
+        <p class="loading-text" id="loadingText">Preparando cámara</p>
+        <p class="loading-subtext" id="loadingSubtext">El navegador solicitará permiso para acceder a tu cámara.<br>Por favor, <strong>acepta el permiso</strong> cuando aparezca.</p>
+      </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <main id="mainContent" class="main-content">
+      <!-- Botón Principal (oculto, cámara auto-inicia) -->
+      <div class="camera-section" id="cameraSection" style="display: none;">
+        <button id="webcamButton" class="camera-button">
+          <span class="button-icon">📷</span>
+          <span class="button-text">Activar Cámara</span>
+        </button>
+      </div>
+
+      <!-- Vista de la Cámara -->
+      <div id="videoContainer" class="video-container hidden">
+        <div class="video-wrapper">
+          <video id="webcam" autoplay playsinline></video>
+          <canvas id="output_canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Texto de Guion / Subtítulos -->
+      <div id="subtitleText" class="subtitle-text"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>💜 Desarrollado por ISTEduca - Todos juntos cuidandonos | 2026</p>
+    </footer>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
