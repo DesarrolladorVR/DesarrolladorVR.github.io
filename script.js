@@ -5,11 +5,28 @@ import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0"
 
 const { PoseLandmarker, FilesetResolver, DrawingUtils } = vision;
 
-// Configuración de Colores de Tracking
+// Configuración de Colores de Tracking (MEJORADO CON FEEDBACK)
 const TRACKING_COLORS = {
-  LANDMARK_BORDER: '#ff00a6', // Pink IST
-  LANDMARK_FILL: '#7300ff',   // Purple IST
-  CONNECTOR: '#ff00a6'        // Pink IST
+  DEFAULT: {
+    LANDMARK_BORDER: '#ff00a6',
+    LANDMARK_FILL: '#7300ff',
+    CONNECTOR: '#ff00a6'
+  },
+  SUCCESS: {
+    LANDMARK_BORDER: '#00ff88',
+    LANDMARK_FILL: '#00cc66',
+    CONNECTOR: '#00ff88'
+  },
+  WARNING: {
+    LANDMARK_BORDER: '#ffaa00',
+    LANDMARK_FILL: '#ff8800',
+    CONNECTOR: '#ffaa00'
+  },
+  ERROR: {
+    LANDMARK_BORDER: '#ff4444',
+    LANDMARK_FILL: '#cc0000',
+    CONNECTOR: '#ff4444'
+  }
 };
 
 // Variables globales
@@ -24,19 +41,97 @@ let detectionStats = {
   poseCount: 0,
   confidence: 0,
   status: 'Esperando...'
+  };
+
+  // NUEVO: Estado de validación para feedback visual
+let validationState = {
+  straightBack: false,
+  openPosture: false,
+  smile: false,
+  isValid: false,
+  currentPhase: 0
 };
 
 // ============================================================
 // GESTOR DE EXPERIENCIA (NUEVO)
 // ============================================================
 // ============================================================
-// FUNCIONES DE DETECCIÓN (NUEVAS)
+// FUNCIONES DE DETECCIÓN (MEJORADAS)
 // ============================================================
 
+// Historial para suavizado de landmarks
+const landmarkHistory = [];
+
+function smoothLandmarks(newLandmarks) {
+  const SMOOTHING_FRAMES = 3; // Promediar ultimos 3 frames
+  landmarkHistory.push(newLandmarks);
+  
+  if (landmarkHistory.length > SMOOTHING_FRAMES) {
+    landmarkHistory.shift();
+  }
+  
+  if (landmarkHistory.length === 1) {
+    return newLandmarks;
+  }
+  
+  // Calcular promedio
+  return newLandmarks.map((point, idx) => {
+    let sumX = 0, sumY = 0, sumZ = 0, sumVis = 0;
+    
+    landmarkHistory.forEach(frame => {
+      if (frame[idx]) {
+        sumX += frame[idx].x;
+        sumY += frame[idx].y;
+        sumZ += frame[idx].z || 0;
+        sumVis += frame[idx].visibility || 0;
+      }
+    });
+    
+    const count = landmarkHistory.length;
+    return {
+      x: sumX / count,
+      y: sumY / count,
+      z: sumZ / count,
+      visibility: sumVis / count
+    };
+  });
+}
+
 function detectStraightBack(landmarks) {
-  // Angulo de espalda < 20 grados es muy recto
-  const angle = calculateBackAngle(landmarks);
-  return angle < 20; 
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+  
+  if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+    validationState.straightBack = false;
+    validationState.isValid = false;
+    return false;
+  }
+  
+  // Puntos medios
+  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+  const hipMidY = (leftHip.y + rightHip.y) / 2;
+  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
+  const hipMidX = (leftHip.x + rightHip.x) / 2;
+  
+  // 1. Diferencia horizontal (desviación lateral de columna)
+  const horizontalDiff = Math.abs(shoulderMidX - hipMidX);
+  
+  // 2. Angulo vertical (inclinación)
+  const verticalAngle = Math.abs(Math.atan2(
+    shoulderMidX - hipMidX,
+    shoulderMidY - hipMidY
+  ) * 180 / Math.PI);
+  
+  // Validaciones: Deviation < 8% del ancho y angulo < 15 grados
+  const isBackStraight = horizontalDiff < 0.08 && verticalAngle < 15;
+  
+  // ACTUALIZAR ESTADO VISUAL
+  validationState.straightBack = isBackStraight;
+  validationState.isValid = isBackStraight;
+  
+  return isBackStraight;
 }
 
 function detectOpenPosture(landmarks) {
@@ -45,38 +140,54 @@ function detectOpenPosture(landmarks) {
   const leftShoulder = landmarks[11];
   const rightShoulder = landmarks[12];
 
-  // Manos visibles
-  if (leftWrist.visibility < 0.5 || rightWrist.visibility < 0.5) return false;
+  if (!leftWrist || !rightWrist || leftWrist.visibility < 0.5 || rightWrist.visibility < 0.5) {
+    validationState.openPosture = false;
+    validationState.isValid = false;
+    return false;
+  }
 
-  // Manos abajo de hombros
-  if (leftWrist.y < leftShoulder.y || rightWrist.y < rightShoulder.y) return false;
-
-  // Manos separadas (no cruzadas)
-  // Distancia X entre muñecas razonable (> ancho de hombros/2)
+  // Distancia muñecas vs hombros
   const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
   const wristDist = Math.abs(leftWrist.x - rightWrist.x);
-
-  return wristDist > shoulderWidth * 0.5;
+  
+  // Postura abierta: Muñecas más separadas que el 50% del ancho de hombros
+  const isOpen = wristDist > shoulderWidth * 0.5;
+  
+  // ACTUALIZAR ESTADO VISUAL
+  validationState.openPosture = isOpen;
+  validationState.isValid = isOpen;
+  
+  return isOpen;
 }
 
 function detectSmile(landmarks) {
-  // Aproximación con PoseLandmarks (Mouth corners 9, 10 vs Eyes 3, 6)
   const mouthLeft = landmarks[9];
   const mouthRight = landmarks[10];
-  
-  // Usar pupilas o ojos externos
-  const eyeLeft = landmarks[3]; // Outer
-  const eyeRight = landmarks[6]; // Outer
+  const eyeLeft = landmarks[3];
+  const eyeRight = landmarks[6];
 
-  if (!mouthLeft || !mouthRight || !eyeLeft || !eyeRight) return false;
+  if (!mouthLeft || !mouthRight || !eyeLeft || !eyeRight) {
+    validationState.smile = false;
+    validationState.isValid = false;
+    return false;
+  }
 
   const mouthWidth = Math.hypot(mouthLeft.x - mouthRight.x, mouthLeft.y - mouthRight.y);
   const eyeWidth = Math.hypot(eyeLeft.x - eyeRight.x, eyeLeft.y - eyeRight.y);
-
-  // Ratio experimental
-  const ratio = mouthWidth / eyeWidth;
+  const widthRatio = mouthWidth / eyeWidth;
   
-  return ratio > 0.55; // Ajustable
+  const avgEyeY = (eyeLeft.y + eyeRight.y) / 2;
+  const avgMouthY = (mouthLeft.y + mouthRight.y) / 2;
+  const mouthElevation = avgEyeY - avgMouthY;
+  
+  // Sonrisa: Boca ancha Y mejillas no muy bajas
+  const isSmiling = widthRatio > 0.50 && mouthElevation < 0.15;
+  
+  // ACTUALIZAR ESTADO VISUAL
+  validationState.smile = isSmiling;
+  validationState.isValid = isSmiling;
+  
+  return isSmiling;
 }
 
 const ExperienceManager = {
@@ -194,17 +305,17 @@ const ExperienceManager = {
           if (landmarks) {
               this.transitionTo(1);
           }
-          return;
+          return null;
       }
 
       // NO procesar triggers si el audio está sonando
       if (this.isAudioPlaying) {
           this.holdStartTime = 0; 
-          return;
+          return { isAudioPlaying: true, name: this.phases[this.currentPhase]?.name };
       }
 
       const phase = this.phases[this.currentPhase];
-      if (!phase) return;
+      if (!phase) return null;
       
       // Lógica Trigger: POSE
       if (phase.trigger === 'pose' && phase.check) {
@@ -218,22 +329,40 @@ const ExperienceManager = {
               const holdDuration = phase.holdDuration || 500; // Default 0.5s
               const heldTime = now - this.holdStartTime;
               
+              // Solo transicionar si completó el tiempo
               if (heldTime >= holdDuration) {
                   this.transitionTo(this.currentPhase + 1);
+                  return null; // Transición ocurrida
               }
+              
+              return {
+                  isValid: true,
+                  current: heldTime,
+                  total: holdDuration,
+                  name: phase.name
+              };
+
           } else {
               this.holdStartTime = 0; // Reset si pierde la pose
+              return {
+                  isValid: false,
+                  current: 0,
+                  total: phase.holdDuration || 500,
+                  name: phase.name
+              };
           }
 
       } 
       // Lógica Trigger: TIME
       else if (phase.trigger === 'time') {
-          // Contamos el delay DESDE que terminó el audio
           const timeSinceAudio = now - this.audioFinishedTime;
           if (timeSinceAudio > phase.delay) {
                this.transitionTo(this.currentPhase + 1);
           }
+          return { isWaiting: true, name: phase.name };
       }
+      
+      return null;
   },
 
   async transitionTo(phaseId) {
@@ -275,6 +404,14 @@ const ExperienceManager = {
           this.currentAudio.pause();
           this.currentAudio = null;
       }
+      // RESETEAR ESTADO DE VALIDACIÓN
+      validationState = {
+        straightBack: false,
+        openPosture: false,
+        smile: false,
+        isValid: false,
+        currentPhase: 0
+      };
       updateSubtitle('');
   }
 };
@@ -1031,9 +1168,85 @@ async function enableCam(event) {
   }
 }
 
+// Funciones de dibujo de UI
+function drawValidationFeedback(ctx, width, height, colors) {
+  const padding = 20;
+  const iconSize = 60;
+  const x = width - iconSize - padding;
+  const y = padding;
+  
+  ctx.save();
+  ctx.fillStyle = colors.success ? 
+    'rgba(0, 255, 136, 0.3)' : 'rgba(255, 170, 0, 0.3)';
+  ctx.beginPath();
+  ctx.arc(x + iconSize/2, y + iconSize/2, iconSize/2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(
+    colors.success ? '✓' : '⚠',
+    x + iconSize/2,
+    y + iconSize/2
+  );
+  
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  const statusText = colors.success ? 'CORRECTO' : 'AJUSTA POSTURA';
+  ctx.strokeText(statusText, x + iconSize/2, y + iconSize + 25);
+  ctx.fillText(statusText, x + iconSize/2, y + iconSize + 25);
+  ctx.restore();
+}
+
+function drawProgressIndicator(ctx, width, height, current, total, phaseName) {
+  const progress = Math.min(current / total, 1);
+  const barWidth = 300;
+  const barHeight = 30;
+  const x = (width - barWidth) / 2;
+  const y = height - 80;
+  
+  ctx.save();
+  // Fondo
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(x - 10, y - 40, barWidth + 20, barHeight + 50);
+  
+  // Texto titulo
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Mantén: ${phaseName}`, width / 2, y - 15);
+  
+  // Barra fondo
+  ctx.fillStyle = '#333333';
+  ctx.fillRect(x, y, barWidth, barHeight);
+  
+  // Barra progreso (Gradiente)
+  const gradient = ctx.createLinearGradient(x, y, x + barWidth, y);
+  gradient.addColorStop(0, '#ff00a6');
+  gradient.addColorStop(1, '#7300ff');
+  
+  ctx.fillStyle = gradient;
+  ctx.fillRect(x, y, barWidth * progress, barHeight);
+  
+  // Borde
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, barWidth, barHeight);
+  
+  // Porcentaje
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.fillText(`${Math.round(progress * 100)}%`, width / 2, y + 20);
+  ctx.restore();
+}
+
 // Predecir poses desde webcam
 async function predictWebcam() {
-  // Ajustar tama\u00f1o del canvas
+  // Ajustar tamaño del canvas
   if (video.videoWidth > 0) {
     canvasElement.width = video.videoWidth;
     canvasElement.height = video.videoHeight;
@@ -1060,69 +1273,83 @@ async function predictWebcam() {
         canvasCtx.save();
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         
-        // Actualizar contador de poses
-        detectionStats.poseCount = result.landmarks.length;
-        
-        // Dibujar landmarks
+        let progressInfo = null;
+        let smoothed = null;
+
+        if (result.landmarks && result.landmarks.length > 0) {
+            // Updated: Use smoothing
+            smoothed = smoothLandmarks(result.landmarks[0]);
+            
+            // GESTOR DE EXPERIENCIA (Update with smoothed landmarks)
+            // Capturamos el resultado para usar en el dibujo
+            progressInfo = ExperienceManager.update(smoothed);
+            
+            detectionStats.poseCount = 1;
+        } else {
+            detectionStats.poseCount = 0;
+        }
+
         const drawingUtils = new DrawingUtils(canvasCtx);
         
-        for (const landmark of result.landmarks) {
-          // Calcular confianza promedio
-          const avgConfidence = landmark.reduce((sum, point) => 
-            sum + (point.visibility || 0), 0) / landmark.length;
-          detectionStats.confidence = avgConfidence;
+        // Dibujado de esqueleto
+        // Dibujado de esqueleto
+        if (smoothed) {
+            // DETERMINAR COLORES SEGÚN VALIDACIÓN
+            let currentColors = TRACKING_COLORS.DEFAULT;
+            
+            // Si estamos en una fase activa de postura, usar colores de feedback
+            if (progressInfo && progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting) {
+                if (progressInfo.isValid) {
+                    currentColors = TRACKING_COLORS.SUCCESS; // Verde
+                } else {
+                    currentColors = TRACKING_COLORS.WARNING; // Naranja
+                }
+            }
           
-          // Dibujar puntos con colores personalizados
-          drawingUtils.drawLandmarks(landmark, {
-            color: TRACKING_COLORS.LANDMARK_BORDER,
-            fillColor: TRACKING_COLORS.LANDMARK_FILL,
-            radius: (data) => DrawingUtils.lerp(data.from.z, -0.15, 0.1, 8, 2)
-          });
+            // Calcular confianza promedio
+            const avgConfidence = smoothed.reduce((sum, point) => 
+               sum + (point.visibility || 0), 0) / smoothed.length;
+            detectionStats.confidence = avgConfidence;
           
-          // Dibujar conexiones
-          drawingUtils.drawConnectors(
-            landmark, 
-            PoseLandmarker.POSE_CONNECTIONS,
-            { color: TRACKING_COLORS.CONNECTOR, lineWidth: 3 }
-          );
+            // Dibujar puntos con colores dinámicos
+            drawingUtils.drawLandmarks(smoothed, {
+              color: currentColors.LANDMARK_BORDER,
+              fillColor: currentColors.LANDMARK_FILL,
+              radius: (data) => DrawingUtils.lerp(data.from.z, -0.15, 0.1, 8, 2)
+            });
+          
+            // Dibujar conexiones
+            drawingUtils.drawConnectors(
+               smoothed, 
+               PoseLandmarker.POSE_CONNECTIONS,
+               { color: currentColors.CONNECTOR, lineWidth: 3 }
+            );
+
+            // Dibujar Feedback UI sobre el esqueleto
+            if (progressInfo) {
+                if (progressInfo.isValid || (progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting)) {
+                     // Mostrar circulo de estado solo si estamos validando
+                     drawValidationFeedback(canvasCtx, canvasElement.width, canvasElement.height, { success: progressInfo.isValid });
+                }
+                
+                if (progressInfo.current !== undefined && progressInfo.total !== undefined) {
+                    drawProgressIndicator(canvasCtx, canvasElement.width, canvasElement.height, progressInfo.current, progressInfo.total, progressInfo.name);
+                }
+            }
         }
         
         canvasCtx.restore();
         updateStats();
         
-        // GESTOR DE EXPERIENCIA (Actualización)
-        if (result.landmarks.length > 0) {
-           ExperienceManager.update(result.landmarks[0]);
-        } else {
-           // Si se pierde el usuario mucho tiempo, ¿resetear?
-           // Por ahora no reseteamos para no cortar la experiencia si se mueve un poco.
-        }
-
-        /* LÓGICA ANTERIOR COMENTADA PARA EVITAR CONFLICTOS
-        // Detectar brazos levantados y reproducir sonido (oneshot)
-        if (result.landmarks.length > 0) {
-          const armsUp = detectArmsUp(result.landmarks[0]);
-          
-          if (armsUp && !armsUpDetected) {
-            // Brazos levantados por primera vez
-            armsUpDetected = true;
-            playArmsUpSound();
-            console.log("🎵 ¡Brazos levantados! Sonido reproducido");
-          } else if (!armsUp && armsUpDetected) {
-            // Brazos bajados, resetear para permitir nueva detección
-            armsUpDetected = false;
-          }
-        }
-        */
-        
-        // Analizar postura si el entrenador está activo
-        if (liftingTrainer.enabled && result.landmarks.length > 0) {
-          const analysis = analyzeLiftingPosture(result.landmarks[0]);
+        // Analizar postura si el entrenador está activo (Legacy / Extra feature)
+        if (liftingTrainer.enabled && smoothed) {
+          const analysis = analyzeLiftingPosture(smoothed);
           if (analysis) {
             updateTrainerUI(analysis);
           }
         }
-                if (detectionStats.poseCount > 0) {
+
+        if (detectionStats.poseCount > 0) {
           updateStatus(`\u2705 Detectando ${detectionStats.poseCount} pose(s)`);
         } else {
           updateStatus('\ud83d\udc40 Esperando persona en cuadro...');
