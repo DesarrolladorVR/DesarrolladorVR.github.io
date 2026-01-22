@@ -54,9 +54,84 @@
 
       <!-- Vista de la Cámara -->
       <div id="videoContainer" class="video-container hidden">
-        <div class="video-wrapper">
-          <video id="webcam" autoplay playsinline></video>
-          <canvas id="output_canvas"></canvas>
+        <div class="camera-layout">
+          <!-- COLUMNA IZQUIERDA: Video -->
+          <div class="video-wrapper">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="output_canvas"></canvas>
+            
+            <!-- OVERLAY: Guías de Calibración -->
+            <div id="calibrationOverlay" class="calibration-overlay hidden">
+              <div class="calibration-title">📏 Ubícate a 1 metro de la pantalla</div>
+              
+              <div class="calibration-guide face-guide">
+                <div class="guide-box"></div>
+                <div class="guide-label">Coloca tu cara aquí</div>
+              </div>
+              
+              <div class="calibration-guide shoulder-guide">
+                <div class="guide-box"></div>
+                <div class="guide-label">Coloca tus hombros aquí</div>
+              </div>
+            </div>
+            
+            <!-- OVERLAY: Feedback de Validación -->
+            <div id="validationOverlay" class="validation-overlay hidden">
+              <div class="validation-circle" id="validationCircle"></div>
+            </div>
+            
+            <!-- OVERLAY: Barra de Progreso y UI Funcional -->
+            <div id="progressOverlay" class="progress-overlay hidden">
+              <div class="progress-container">
+                <div class="phase-info">
+                  <span class="phase-icon" id="phaseIcon">🎯</span>
+                  <span class="phase-name" id="phaseName">Fase</span>
+                </div>
+                
+                <div class="progress-bar-wrapper">
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-percentage" id="progressPercentage">0%</div>
+                </div>
+                
+                <div class="hold-feedback" id="holdFeedback" style="display: none;">
+                  <div class="hold-text">Mantén la postura</div>
+                  <div class="hold-timer" id="holdTimer">0s / 2s</div>
+                </div>
+                
+                <div class="stats-bar">
+                  <div class="stat-item">
+                    <span class="stat-label">Confianza:</span>
+                    <span class="stat-value" id="confidenceValue">0%</span>
+                  </div>
+                  <div class="stat-item">
+                    <span class="stat-label">Pose:</span>
+                    <span class="stat-value" id="poseValue">—</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- COLUMNA DERECHA: Panel de Calibración -->
+          <div class="calibration-panel" id="calibrationPanel" style="display: none;">
+            <div class="panel-header">
+              <h3>Calibración</h3>
+            </div>
+            
+            <div class="calibration-status" id="calibrationStatus">
+              <div class="status-icon">⏳</div>
+              <div class="status-text">Posiciónate en las guías</div>
+            </div>
+            
+            <div class="calibration-instructions">
+              <p>📏 Ubícate a <strong>1 metro</strong> de la pantalla</p>
+              <p>👤 Centra tu <strong>cara</strong> en el cuadro superior</p>
+              <p>💪 Centra tus <strong>hombros</strong> en el cuadro inferior</p>
+              <p>⏱️ Mantén la posición <strong>2 segundos</strong></p>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -1,11 +1,11 @@
-﻿// ISTEduca - Detección de Poses con MediaPipe
-// Sistema de detección de poses mejorado con información educativa
+﻿// ISTEduca - Detecci\u00f3n de Poses con MediaPipe
+// Sistema de detecci\u00f3n de poses mejorado con informaci\u00f3n educativa
 
 import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
 const { PoseLandmarker, FilesetResolver, DrawingUtils } = vision;
 
-// Colores de Tracking
+// Configuración de Colores de Tracking (MEJORADO CON FEEDBACK)
 const TRACKING_COLORS = {
   DEFAULT: {
     LANDMARK_BORDER: '#ff00a6',
@@ -50,6 +50,22 @@ let validationState = {
   smile: false,
   isValid: false,
   currentPhase: 0
+};
+
+// Sistema de baseline calibrado para detección de espalda
+let backBaseline = null;
+
+// Tolerancia al jitter: contador de frames fallidos
+let jitterToleranceFrames = 0;
+const MAX_JITTER_FRAMES = 5; // ~150ms a 30fps antes de resetear hold
+
+let calibrationComplete = false;
+
+// Sistema de feedback para calibración
+let calibrationFeedback = {
+  isCorrect: false,
+  framesCorrect: 0,
+  soundPlayed: false
 };
 
 // ============================================================
@@ -97,35 +113,275 @@ function smoothLandmarks(newLandmarks) {
   });
 }
 
+// ============================================================
+// FUNCIONES AUXILIARES PARA BASELINE CALIBRADO
+// ============================================================
+
+function captureBackBaseline(landmarks) {
+  const ls = landmarks[11], rs = landmarks[12], nose = landmarks[0];
+  if (!ls || !rs || !nose) return null;
+  
+  const vis = (p) => (p.visibility ?? 1);
+  if (vis(ls) < 0.5 || vis(rs) < 0.5 || vis(nose) < 0.5) return null;
+  
+  return {
+    shoulderMidY: (ls.y + rs.y) / 2,
+    noseY: nose.y,
+    timestamp: Date.now()
+  };
+}
+
+function detectStraightBackFallback(landmarks) {
+  const ls = landmarks[11], rs = landmarks[12], nose = landmarks[0];
+  if (!ls || !rs || !nose) return false;
+  
+  const vis = (p) => (p.visibility ?? 1);
+  if (vis(ls) < 0.4 || vis(rs) < 0.4 || vis(nose) < 0.4) return false;
+  
+  // 1. Hombros nivelados (fundamental)
+  const shouldersLevel = Math.abs(ls.y - rs.y) < 0.04;
+  if (!shouldersLevel) return false;
+  
+  // 2. Si no hay baseline, capturar ahora
+  if (!backBaseline) {
+    backBaseline = captureBackBaseline(landmarks);
+    return false; // Aún no validamos en primer frame
+  }
+  
+  // 3. Verificar que no hayan caído (encorvado)
+  const shoulderDrop = ((ls.y + rs.y) / 2) - backBaseline.shoulderMidY;
+  const noseDrop = nose.y - backBaseline.noseY;
+  
+  const notSlouching = shoulderDrop < 0.05 && noseDrop < 0.06;
+  
+  return shouldersLevel && notSlouching;
+}
+
+// ============================================================
+// FUNCIONES DE CALIBRACIÓN VISUAL (HTML OVERLAY)
+// ============================================================
+
+function showCalibrationOverlay() {
+  const overlay = document.getElementById('calibrationOverlay');
+  const panel = document.getElementById('calibrationPanel');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+  }
+  if (panel) {
+    panel.style.display = 'flex';
+  }
+}
+
+function hideCalibrationOverlay() {
+  const overlay = document.getElementById('calibrationOverlay');
+  const panel = document.getElementById('calibrationPanel');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+  if (panel) {
+    panel.style.display = 'none';
+  }
+}
+
+function updateCalibrationStatus(isCorrect, progress = 0) {
+  const statusEl = document.getElementById('calibrationStatus');
+  if (!statusEl) return;
+  
+  const iconEl = statusEl.querySelector('.status-icon');
+  const textEl = statusEl.querySelector('.status-text');
+  
+  if (isCorrect) {
+    statusEl.classList.add('success');
+    iconEl.textContent = '✅';
+    const percentage = Math.round((progress / 2000) * 100);
+    textEl.textContent = `¡Perfecto! Mantén la posición (${percentage}%)`;
+  } else {
+    statusEl.classList.remove('success');
+    iconEl.textContent = '⏳';
+    textEl.textContent = 'Posiciónate en las guías';
+  }
+}
+
+// Función para feedback visual de calibración (cambiar colores de guías)
+function updateCalibrationFeedback(isCorrect) {
+  const faceGuide = document.querySelector('.face-guide');
+  const shoulderGuide = document.querySelector('.shoulder-guide');
+  
+  if (faceGuide) {
+    if (isCorrect) {
+      faceGuide.classList.add('correct');
+      faceGuide.classList.remove('incorrect');
+    } else {
+      faceGuide.classList.remove('correct');
+      faceGuide.classList.add('incorrect');
+    }
+  }
+  
+  if (shoulderGuide) {
+    if (isCorrect) {
+      shoulderGuide.classList.add('correct');
+      shoulderGuide.classList.remove('incorrect');
+    } else {
+      shoulderGuide.classList.remove('correct');
+      shoulderGuide.classList.add('incorrect');
+    }
+  }
+  
+  // Reproducir sonido de validación (una sola vez por detección correcta)
+  if (isCorrect && !calibrationFeedback.soundPlayed) {
+    playCalibrationSound();
+    calibrationFeedback.soundPlayed = true;
+  } else if (!isCorrect) {
+    calibrationFeedback.soundPlayed = false;
+  }
+}
+
+// Función para reproducir sonido de validación
+function playCalibrationSound() {
+  try {
+    const context = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    
+    // Conectar nodos
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    
+    // Sonido: nota aguda (validación correcta)
+    oscillator.frequency.value = 880; // La5
+    oscillator.type = 'sine';
+    
+    // Envelope: ataque rápido, decaimiento
+    gain.gain.setValueAtTime(0.3, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.2);
+    
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.2);
+  } catch (e) {
+    console.log('Error al reproducir sonido de calibración:', e);
+  }
+}
+
+function detectCorrectPositioning(landmarks) {
+  if (!landmarks || landmarks.length === 0) return false;
+  
+  // Verificar landmarks clave
+  const nose = landmarks[0];
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  
+  if (!nose || !leftShoulder || !rightShoulder) return false;
+  
+  // Verificar visibilidad (reducido a 0.3 para ser más tolerante)
+  const vis = (p) => (p?.visibility ?? 1);
+  if (vis(nose) < 0.3 || vis(leftShoulder) < 0.3 || vis(rightShoulder) < 0.3) {
+    return false;
+  }
+  
+  // Calcular puntos medios
+  const faceY = nose.y;
+  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
+  const shoulderWidth = Math.abs(leftShoulder.x - rightShoulder.x);
+  
+  // Verificar si están dentro de las guías (con tolerancia MEJORADA)
+  // Valores corresponden a las guías en CSS
+  const faceGuideY = 0.20;
+  const faceGuideHeight = 0.15;
+  const shoulderGuideY = 0.42;
+  const shoulderGuideX = 0.50;
+  const shoulderGuideHeight = 0.12;
+  const shoulderGuideWidth = 0.35;
+  
+  const tolerance = 0.12; // 12% de tolerancia (aumentado para ser más leniente)
+  
+  // Cara debe estar en el rango Y de la guía
+  const faceInRange = Math.abs(faceY - faceGuideY) < (faceGuideHeight / 2 + tolerance);
+  
+  // Hombros deben estar en el rango Y y X de la guía
+  const shouldersInRangeY = Math.abs(shoulderMidY - shoulderGuideY) < (shoulderGuideHeight / 2 + tolerance);
+  const shouldersInRangeX = Math.abs(shoulderMidX - shoulderGuideX) < (shoulderGuideWidth / 2 + tolerance);
+  
+  // Ancho de hombros debe ser apropiado (criterio más flexible)
+  const shoulderWidthOk = shoulderWidth > 0.10 && shoulderWidth < 0.65;
+  
+  // DEBUG: Mostrar en consola qué falla (descomenta si es necesario)
+  // console.log('CALIBRATION DEBUG:', {
+  //   faceInRange, shouldersInRangeY, shouldersInRangeX, shoulderWidthOk,
+  //   faceY, shoulderMidY, shoulderMidX, shoulderWidth
+  // });
+  
+  const isCorrect = faceInRange && shouldersInRangeY && shouldersInRangeX && shoulderWidthOk;
+  
+  // Actualizar feedback visual
+  updateCalibrationFeedback(isCorrect);
+  
+  return isCorrect;
+}
+
+// ============================================================
+// DETECCIÓN DE ESPALDA RECTA (HÍBRIDA - CORREGIDA)
+// ============================================================
+
 function detectStraightBack(landmarks) {
   const leftShoulder = landmarks[11];
   const rightShoulder = landmarks[12];
   const leftHip = landmarks[23];
   const rightHip = landmarks[24];
   
-  if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+  // Función helper para visibilidad
+  const vis = (p) => (p?.visibility ?? 1);
+  
+  // Si no están los hombros, falla directamente
+  if (!leftShoulder || !rightShoulder) {
     validationState.straightBack = false;
     validationState.isValid = false;
     return false;
   }
   
-  // Puntos medios
-  const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
-  const hipMidY = (leftHip.y + rightHip.y) / 2;
-  const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
-  const hipMidX = (leftHip.x + rightHip.x) / 2;
+  // ESTRATEGIA HÍBRIDA:
+  // 1. Si caderas están visibles y con buena confianza -> usar método tradicional
+  // 2. Si no -> usar fallback de cabeza+hombros
   
-  // 1. Diferencia horizontal (desviación lateral de columna)
-  const horizontalDiff = Math.abs(shoulderMidX - hipMidX);
+  const hipsVisible = leftHip && rightHip && 
+                      vis(leftHip) > 0.4 && vis(rightHip) > 0.4;
   
-  // 2. Angulo vertical (inclinación)
-  const verticalAngle = Math.abs(Math.atan2(
-    shoulderMidX - hipMidX,
-    shoulderMidY - hipMidY
-  ) * 180 / Math.PI);
+  let isBackStraight = false;
   
-  // Validaciones: Deviation < 8% del ancho y angulo < 15 grados
-  const isBackStraight = horizontalDiff < 0.08 && verticalAngle < 15;
+  if (hipsVisible) {
+    // ========================================
+    // MÉTODO TRADICIONAL (CON BUG CORREGIDO)
+    // ========================================
+    
+    const minVis = 0.4;
+    if (vis(leftShoulder) < minVis || vis(rightShoulder) < minVis) {
+      validationState.straightBack = false;
+      validationState.isValid = false;
+      return false;
+    }
+    
+    const shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2;
+    const hipMidY = (leftHip.y + rightHip.y) / 2;
+    const shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2;
+    const hipMidX = (leftHip.x + rightHip.x) / 2;
+    
+    const dx = shoulderMidX - hipMidX;
+    const dy = hipMidY - shoulderMidY; // ✅ CORREGIDO: ahora positivo si hips están abajo
+    
+    // Ángulo respecto a la vertical
+    const verticalAngle = Math.atan2(Math.abs(dx), Math.abs(dy)) * 180 / Math.PI;
+    
+    const horizontalDiff = Math.abs(dx);
+    
+    // Validaciones ajustadas
+    isBackStraight = horizontalDiff < 0.08 && verticalAngle < 15;
+    
+  } else {
+    // ========================================
+    // MÉTODO FALLBACK (cabeza + hombros)
+    // ========================================
+    isBackStraight = detectStraightBackFallback(landmarks);
+  }
   
   // ACTUALIZAR ESTADO VISUAL
   validationState.straightBack = isBackStraight;
@@ -191,7 +447,7 @@ function detectSmile(landmarks) {
 }
 
 const ExperienceManager = {
-  currentPhase: 0, 
+  currentPhase: -1, // Empezar en -1, la detección inicial llevará a 0 (calibración)
   phaseStartTime: 0,
   audioFinishedTime: 0, 
   isAudioPlaying: false, 
@@ -199,18 +455,27 @@ const ExperienceManager = {
   currentAudio: null,
   
   phases: {
+      0: {
+        id: 0,
+        name: 'Calibración',
+        text: '"Ubícate a 1 metro de la pantalla y centra tu cara y hombros en las guías mostradas."',
+        trigger: 'pose',
+        check: detectCorrectPositioning,
+        holdDuration: 2000, // Mantener posición correcta 2 segundos
+        showGuides: true // Flag especial para mostrar guías
+      },
       1: { 
         id: 1, 
         name: 'Introducción', 
         text: '"Hola. Te contamos que, según la neurociencia, aprender no es solo pensar; es también respirar, sentir, atender y conectarse con el propio cuerpo. Por esto, te invitamos a vivir una pequeña experiencia que facilite tu aprendizaje."',
-        audioSrc: '../../voiceoff/intro.wav', 
+        audioSrc: 'voiceoff/intro.wav', 
         nextTrigger: 'auto_after_audio' 
       },
       2: { 
         id: 2, 
         name: 'Postura', 
         text: '"Comencemos. Siéntate cómodamente, con los pies afirmados en el suelo y tu espalda derecha."',
-        audioSrc: '../../voiceoff/postura_1.wav', 
+        audioSrc: 'voiceoff/postura_1.wav', 
         trigger: 'pose', 
         check: detectStraightBack,
         holdDuration: 2000 // Mantener postura recta 2 segundos
@@ -219,15 +484,15 @@ const ExperienceManager = {
         id: 3, 
         name: 'Validación Postura', 
         text: '"Muy bien, mantén esa postura."',
-        audioSrc: '../../voiceoff/postura_2.wav', 
+        audioSrc: 'voiceoff/postura_2.wav', 
         trigger: 'time',
         delay: 2000 // Esperar 2s DESPUES del audio
       },
       4: { 
         id: 4, 
-        name: 'RespiraciÃ³n', 
+        name: 'Respiración', 
         text: '"Ahora, realiza una o dos respiraciones profundas y lentas. Inhalando suavemente por la nariz... y exhalando por la boca. Siente cómo tu cuerpo se oxigena."',
-        audioSrc: '../../voiceoff/respiracion.wav', 
+        audioSrc: 'voiceoff/respiracion.wav', 
         trigger: 'time', 
         delay: 6000 // 6s de silencio para respirar despues de instrucciones
       },
@@ -235,7 +500,7 @@ const ExperienceManager = {
         id: 5, 
         name: 'Conexión', 
         text: '"En este estado de calma, conéctate con una emoción de apertura y confianza. Visualiza esa seguridad que ayuda a tu proceso de aprendizaje."',
-        audioSrc: '../../voiceoff/conexion.wav', 
+        audioSrc: 'voiceoff/conexion.wav', 
         trigger: 'pose', 
         check: detectOpenPosture,
         holdDuration: 1500
@@ -244,7 +509,7 @@ const ExperienceManager = {
         id: 6, 
         name: 'Gesto Final', 
         text: '"Finalmente, mira la pantalla y sonríe con ganas."',
-        audioSrc: '../../voiceoff/sonrisa.wav', 
+        audioSrc: 'voiceoff/sonrisa.wav', 
         trigger: 'pose', 
         check: detectSmile,
         holdDuration: 1000 // Mantener sonrisa 1s
@@ -253,8 +518,8 @@ const ExperienceManager = {
         id: 7, 
         name: 'Cierre', 
         text: '"Ahora que escuchaste la campana, estás listo o lista para comenzar. ¡Éxito en tu jornada!"',
-        audioSrc: '../../voiceoff/cierre.wav', 
-        effectSrc: '../../voiceoff/campana.wav', 
+        audioSrc: 'voiceoff/cierre.wav', 
+        effectSrc: 'voiceoff/campana.wav', 
         nextTrigger: 'end' 
       }
   },
@@ -272,7 +537,7 @@ const ExperienceManager = {
         this.currentAudio.onended = () => {
              this.isAudioPlaying = false; // Desbloqueo
              this.audioFinishedTime = Date.now(); // Marca de tiempo
-             console.log(`ðŸ”Š Audio finished: ${src}`);
+             console.log(`🔊 Audio finished: ${src}`);
              resolve();
         };
         
@@ -300,10 +565,10 @@ const ExperienceManager = {
   update(landmarks) {
       const now = Date.now();
       
-      // Fase 0 -> 1: Detección inicial (Sin cambios)
-      if (this.currentPhase === 0) {
+      // Fase -1 -> 0: Detección inicial va a calibración
+      if (this.currentPhase === -1) {
           if (landmarks) {
-              this.transitionTo(1);
+              this.transitionTo(0); // Ir a calibración
           }
           return null;
       }
@@ -317,11 +582,20 @@ const ExperienceManager = {
       const phase = this.phases[this.currentPhase];
       if (!phase) return null;
       
-      // Lógica Trigger: POSE
+      // Lógica Trigger: POSE (CON TOLERANCIA AL JITTER)
       if (phase.trigger === 'pose' && phase.check) {
           const isPoseCorrect = phase.check(landmarks);
           
+          // Actualizar UI de calibración si estamos en fase 0
+          if (this.currentPhase === 0) {
+              const progress = this.holdStartTime > 0 ? (now - this.holdStartTime) : 0;
+              updateCalibrationStatus(isPoseCorrect, progress);
+          }
+          
           if (isPoseCorrect) {
+              // Reset del contador de jitter cuando la pose es correcta
+              jitterToleranceFrames = 0;
+              
               if (this.holdStartTime === 0) {
                   this.holdStartTime = now; // Empezar a contar
               }
@@ -343,13 +617,30 @@ const ExperienceManager = {
               };
 
           } else {
-              this.holdStartTime = 0; // Reset si pierde la pose
-              return {
-                  isValid: false,
-                  current: 0,
-                  total: phase.holdDuration || 500,
-                  name: phase.name
-              };
+              // TOLERANCIA AL JITTER: No resetear inmediatamente
+              jitterToleranceFrames++;
+              
+              if (jitterToleranceFrames > MAX_JITTER_FRAMES) {
+                  // Solo resetear después de varios frames fallidos
+                  this.holdStartTime = 0;
+                  jitterToleranceFrames = 0;
+                  return {
+                      isValid: false,
+                      current: 0,
+                      total: phase.holdDuration || 500,
+                      name: phase.name
+                  };
+              } else {
+                  // Mantener progreso durante tolerancia
+                  const heldTime = this.holdStartTime > 0 ? now - this.holdStartTime : 0;
+                  return {
+                      isValid: false, // Visualmente en warning
+                      current: heldTime,
+                      total: phase.holdDuration || 500,
+                      name: phase.name,
+                      jitterTolerance: true // Flag para UI si quieres mostrar warning suave
+                  };
+              }
           }
 
       } 
@@ -371,7 +662,27 @@ const ExperienceManager = {
       this.currentPhase = phaseId;
       this.phaseStartTime = Date.now();
       this.holdStartTime = 0; // Reset hold
-      console.log(`ðŸŒŸ TransiciÃ³n de Fase: ${phaseId}`);
+      jitterToleranceFrames = 0; // Reset jitter counter
+      
+      // Mostrar/ocultar overlay de calibración
+      if (phaseId === 0) {
+          showCalibrationOverlay();
+      } else {
+          hideCalibrationOverlay();
+      }
+      
+      // Marcar calibración completa al salir de fase 0
+      if (phaseId > 0) {
+          calibrationComplete = true;
+      }
+      
+      // Reset baseline al entrar a fase 2 (postura)
+      if (phaseId === 2) {
+          backBaseline = null;
+          console.log('📏 Baseline de espalda reseteado para calibración');
+      }
+      
+      console.log(`🌟 Transición de Fase: ${phaseId}`);
       
       const phase = this.phases[phaseId];
       if (!phase) return;
@@ -415,6 +726,8 @@ const ExperienceManager = {
       updateSubtitle('');
   }
 };
+
+// Función para actualizar subtítulos
 
 function updateSubtitle(text) {
   const subtitleEl = document.getElementById('subtitleText');
@@ -493,7 +806,7 @@ const canvasElement = document.getElementById("output_canvas");
 const canvasCtx = canvasElement.getContext("2d");
 const armsUpSound = document.getElementById("armsUpSound");
 
-// Elementos de estadísticas
+// Elementos de estad\u00edsticas
 const poseCountElement = document.getElementById("poseCount");
 const confidenceElement = document.getElementById("confidence");
 const statusElement = document.getElementById("status");
@@ -524,7 +837,7 @@ const createPoseLandmarker = async (modelType = 'lite') => {
     });
     
     currentModel = modelType;
-    updateStatus(`Modelo ${modelType.toUpperCase()} cargado âœ“`);
+    updateStatus(`Modelo ${modelType.toUpperCase()} cargado ✓`);
     console.log(`MediaPipe PoseLandmarker (${modelType}) cargado correctamente`);
   } catch (error) {
     console.error("Error al cargar MediaPipe:", error);
@@ -698,7 +1011,7 @@ function calculateHandToTorsoDistance(landmarks) {
     z: (leftShoulder.z + rightShoulder.z + leftHip.z + rightHip.z) / 4
   };
   
-  // PosiciÃ³n de las muÃ±ecas
+  // Posición de las muñecas
   const leftWrist = landmarks[15];
   const rightWrist = landmarks[16];
   
@@ -736,21 +1049,21 @@ function analyzeLiftingPosture(landmarks) {
   let score = 0;
   
   if (isBackStraight) {
-    feedback.push("✓ ¡Excelente! Espalda recta");
+    feedback.push("✅ ¡Excelente! Espalda recta");
     score += 33;
   } else {
     feedback.push("⚠️ ALERTA: Estás doblando la espalda. Mantén la columna recta");
   }
   
   if (areKneesFlexed) {
-    feedback.push("✓ ¡Muy bien! Piernas flexionadas");
+    feedback.push("✅ ¡Muy bien! Piernas flexionadas");
     score += 33;
   } else {
     feedback.push("⚠️ ALERTA: Flexiona más las rodillas. Ponte en cuclillas");
   }
   
   if (isLoadClose) {
-    feedback.push("✓ ¡Perfecto! Carga cerca del cuerpo");
+    feedback.push("✅ ¡Perfecto! Carga cerca del cuerpo");
     score += 34;
   } else {
     feedback.push("⚠️ ALERTA: Acerca más las manos al torso");
@@ -769,17 +1082,10 @@ function analyzeLiftingPosture(landmarks) {
   };
 }
 
-// Actualizar estad\u00edsticas en la UI
+// Actualizar estadísticas en la UI (OPTIMIZADO: delegado al overlay)
 function updateStats() {
-  if (poseCountElement) {
-    poseCountElement.textContent = detectionStats.poseCount;
-  }
-  if (confidenceElement) {
-    const conf = detectionStats.confidence > 0 
-      ? `${(detectionStats.confidence * 100).toFixed(1)}%` 
-      : '-';
-    confidenceElement.textContent = conf;
-  }
+  // Las estadísticas ahora se actualizan en updateProgressOverlay()
+  // Esta función se mantiene por compatibilidad legacy
 }
 // Actualizar UI del entrenador de levantamiento
 function updateTrainerUI(analysis) {
@@ -911,7 +1217,7 @@ function showSecurityWarning(message) {
   warningBox.style.display = 'block';
 }
 
-// Verificar soporte de cÃ¡mara
+// Verificar soporte de cámara
 const hasGetUserMedia = () => !!navigator.mediaDevices?.getUserMedia;
 
 // Verificar si estamos en un contexto seguro
@@ -933,13 +1239,13 @@ const isInIframe = () => {
   }
 };
 
-// FunciÃ³n para abrir en nueva ventana
+// Función para abrir en nueva ventana
 function openInNewWindow() {
   const url = window.location.href;
   window.open(url, '_blank', 'width=1280,height=800');
 }
 
-// Configurar botÃ³n de cÃ¡mara
+// Configurar botón de cámara
 if (!hasGetUserMedia()) {
   console.warn("getUserMedia() no es soportado por tu navegador");
   updateStatus('❌ Cámara no disponible en este navegador');
@@ -980,7 +1286,7 @@ if (!hasGetUserMedia()) {
       webcamButton.addEventListener("click", openInNewWindow);
       
       showSecurityWarning(
-        '🚩 DETECTADO: Estás viendo esto dentro de Rise/Articulate (iframe)\n\n' +
+        '🔒 DETECTADO: Estás viendo esto dentro de Rise/Articulate (iframe)\n\n' +
         '⚠️ PROBLEMA:\n' +
         'Los navegadores BLOQUEAN el acceso a la cámara en iframes por seguridad.\n\n' +
         '✅ SOLUCIÓN:\n' +
@@ -989,7 +1295,7 @@ if (!hasGetUserMedia()) {
         'Usa un BOTÓN DE ENLACE EXTERNO en lugar de iframe:\n' +
         '• Bloque: Botón\n' +
         '• URL: ' + window.location.href + '\n' +
-        '• ✓ Marcar: "Abrir en nueva ventana"\n\n' +
+        '• ✅ Marcar: "Abrir en nueva ventana"\n\n' +
         'Esto permite que los estudiantes accedan directamente sin problemas.'
       );
     }
@@ -1025,7 +1331,7 @@ async function enableCam(event) {
     // Detener c\u00e1mara
     webcamRunning = false;
     if (webcamButton && webcamButton.querySelector('.button-text')) {
-      webcamButton.querySelector('.button-text').textContent = "Activar CÃ¡mara";
+      webcamButton.querySelector('.button-text').textContent = "Activar Cámara";
     }
     if (webcamButton) webcamButton.classList.remove('active');
     videoContainer.classList.add('hidden');
@@ -1039,7 +1345,7 @@ async function enableCam(event) {
       video.srcObject = null;
     }
   } else {
-    // Iniciar cámara
+    // Iniciar c\u00e1mara
     webcamRunning = true;
     if (webcamButton && webcamButton.querySelector('.button-text')) {
       webcamButton.querySelector('.button-text').textContent = "Desactivar Cámara";
@@ -1076,10 +1382,10 @@ async function enableCam(event) {
       if (loadingSubtext) loadingSubtext.innerHTML = 'Inicializando sistema de detección';
       
       video.srcObject = stream;
-      console.log('✓ Stream de cámara obtenido correctamente');
+      console.log('✅ Stream de cámara obtenido correctamente');
       
       video.addEventListener("loadeddata", () => {
-        console.log('✓ Video cargado y listo');
+        console.log('✅ Video cargado y listo');
         updateStatus('Cámara activa - Detectando poses...');
         predictWebcam();
       }, { once: true });
@@ -1109,17 +1415,17 @@ async function enableCam(event) {
         errorIcon = '📷';
         errorTitle = 'No se encontró ninguna cámara';
         errorInstructions = '<strong>Verifica que:</strong><br>' +
-                           'â€¢ Tu cámara esté conectada<br>' +
-                           'â€¢ Los drivers estén instalados correctamente<br>' +
-                           'â€¢ La cámara funcione en otras aplicaciones';
+                           '• Tu cámara esté conectada<br>' +
+                           '• Los drivers estén instalados correctamente<br>' +
+                           '• La cámara funcione en otras aplicaciones';
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
         errorIcon = '⚠️';
         errorTitle = 'Cámara en uso';
         errorInstructions = 'La cámara está siendo usada por otra aplicación.<br><br>' +
                            '<strong>Cierra estas aplicaciones:</strong><br>' +
-                           'â€¢ Zoom, Teams, Skype, Google Meet<br>' +
-                           'â€¢ Otras pestañas del navegador con cámara<br>' +
-                           'â€¢ Aplicaciones de fotos o video';
+                           '• Zoom, Teams, Skype, Google Meet<br>' +
+                           '• Otras pestañas del navegador con cámara<br>' +
+                           '• Aplicaciones de fotos o video';
       } else if (error.name === 'SecurityError') {
         errorIcon = '🔐';
         errorTitle = 'Error de seguridad';
@@ -1163,43 +1469,133 @@ async function enableCam(event) {
       webcamRunning = false;
       updateStatus(errorTitle);
       
-      console.log('🛈 Error mostrado en loading overlay');
+      console.log('ℹ️ Error mostrado en loading overlay');
     }
   }
 }
 
-// Funciones de dibujo de UI
-function drawValidationFeedback(ctx, width, height, colors) {
-  const padding = 20;
-  const iconSize = 60;
-  const x = width - iconSize - padding;
-  const y = padding;
+// Funciones de UI con HTML Overlays
+function updateValidationOverlay(isSuccess) {
+  const overlay = document.getElementById('validationOverlay');
+  const circle = document.getElementById('validationCircle');
   
-  ctx.save();
-  ctx.fillStyle = colors.success ? 
-    'rgba(0, 255, 136, 0.3)' : 'rgba(255, 170, 0, 0.3)';
-  ctx.beginPath();
-  ctx.arc(x + iconSize/2, y + iconSize/2, iconSize/2, 0, Math.PI * 2);
-  ctx.fill();
+  if (!overlay || !circle) return;
   
-  ctx.font = 'bold 32px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText(
-    colors.success ? '✔' : '✘',
-    x + iconSize/2,
-    y + iconSize/2
-  );
+  // Mostrar overlay
+  overlay.classList.remove('hidden');
   
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 3;
-  const statusText = colors.success ? 'CORRECTO' : 'AJUSTA POSTURA';
-  ctx.strokeText(statusText, x + iconSize/2, y + iconSize + 25);
-  ctx.fillText(statusText, x + iconSize/2, y + iconSize + 25);
-  ctx.restore();
+  // Actualizar estado
+  circle.classList.remove('success', 'warning', 'error');
+  
+  if (isSuccess === true) {
+    circle.classList.add('success');
+  } else if (isSuccess === false) {
+    circle.classList.add('warning');
+  } else {
+    circle.classList.add('error');
+  }
+}
+
+function hideValidationOverlay() {
+  const overlay = document.getElementById('validationOverlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// FUNCIONES PARA OVERLAY DE PROGRESO
+// ============================================================
+
+function showProgressOverlay() {
+  const overlay = document.getElementById('progressOverlay');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+  }
+}
+
+function hideProgressOverlay() {
+  const overlay = document.getElementById('progressOverlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+function updateProgressOverlay(progressInfo, stats) {
+  if (!progressInfo) {
+    hideProgressOverlay();
+    return;
+  }
+  
+  // 🎯 NO mostrar progress overlay durante calibración (fase 0)
+  // Debe verse únicamente las guías sin nada que las tape
+  if (ExperienceManager.currentPhase === 0) {
+    hideProgressOverlay();
+    return;
+  }
+  
+  // Mostrar overlay solo a partir de fase 1
+  showProgressOverlay();
+  
+  // Actualizar nombre de fase e ícono
+  const phaseIcons = {
+    0: '📏', 1: '👋', 2: '🪑', 3: '⏸️', 4: '💨', 5: '🤝', 6: '😊', 7: '🔔'
+  };
+  
+  const phaseEl = document.getElementById('phaseName');
+  const iconEl = document.getElementById('phaseIcon');
+  
+  if (phaseEl) phaseEl.textContent = progressInfo.name || 'Fase';
+  if (iconEl) iconEl.textContent = phaseIcons[ExperienceManager.currentPhase] || '🎯';
+  
+  // Actualizar barra de progreso
+  if (progressInfo.total && progressInfo.current !== undefined) {
+    const percentage = Math.min((progressInfo.current / progressInfo.total) * 100, 100);
+    const barFill = document.getElementById('progressBarFill');
+    const percentageEl = document.getElementById('progressPercentage');
+    const holdFeedback = document.getElementById('holdFeedback');
+    const holdTimer = document.getElementById('holdTimer');
+    
+    if (barFill) {
+      barFill.style.width = percentage + '%';
+      
+      // Cambiar color según validación
+      barFill.classList.remove('warning', 'error');
+      if (progressInfo.isValid === false) {
+        barFill.classList.add('warning');
+      } else if (progressInfo.isValid === undefined) {
+        barFill.classList.add('error');
+      }
+    }
+    
+    if (percentageEl) {
+      percentageEl.textContent = Math.round(percentage) + '%';
+    }
+    
+    // Mostrar timer si estamos en hold
+    if (holdFeedback && holdTimer && progressInfo.current > 0) {
+      holdFeedback.style.display = 'block';
+      const currentSeconds = (progressInfo.current / 1000).toFixed(1);
+      const totalSeconds = (progressInfo.total / 1000).toFixed(1);
+      holdTimer.textContent = `${currentSeconds}s / ${totalSeconds}s`;
+    } else if (holdFeedback) {
+      holdFeedback.style.display = 'none';
+    }
+  }
+  
+  // Actualizar estadísticas
+  if (stats) {
+    const confidenceEl = document.getElementById('confidenceValue');
+    const poseEl = document.getElementById('poseValue');
+    
+    if (confidenceEl && stats.confidence !== undefined) {
+      confidenceEl.textContent = Math.round(stats.confidence * 100) + '%';
+    }
+    
+    if (poseEl && stats.poseCount !== undefined) {
+      poseEl.textContent = stats.poseCount > 0 ? '✓' : '—';
+    }
+  }
 }
 
 function drawProgressIndicator(ctx, width, height, current, total, phaseName) {
@@ -1218,7 +1614,7 @@ function drawProgressIndicator(ctx, width, height, current, total, phaseName) {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 14px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(`MantÃ©n: ${phaseName}`, width / 2, y - 15);
+  ctx.fillText(`Mantén: ${phaseName}`, width / 2, y - 15);
   
   // Barra fondo
   ctx.fillStyle = '#333333';
@@ -1246,7 +1642,7 @@ function drawProgressIndicator(ctx, width, height, current, total, phaseName) {
 
 // Predecir poses desde webcam
 async function predictWebcam() {
-  // Ajustar tamaÃ±o del canvas
+  // Ajustar tamaño del canvas
   if (video.videoWidth > 0) {
     canvasElement.width = video.videoWidth;
     canvasElement.height = video.videoHeight;
@@ -1260,7 +1656,7 @@ async function predictWebcam() {
 
   let startTimeMs = performance.now();
   
-  // Frame skipping: procesar 1 de cada 2 frames para mejor rendimiento
+  // ⚡ OPTIMIZACIÓN: Frame skipping (procesar 1 de cada 2 frames)
   frameSkipCounter++;
   const shouldProcess = frameSkipCounter % 2 === 0;
   
@@ -1277,11 +1673,10 @@ async function predictWebcam() {
         let smoothed = null;
 
         if (result.landmarks && result.landmarks.length > 0) {
-            // Updated: Use smoothing
+            // ⚡ OPTIMIZACIÓN: Suavizado de landmarks (reduce jitter)
             smoothed = smoothLandmarks(result.landmarks[0]);
             
-            // GESTOR DE EXPERIENCIA (Update with smoothed landmarks)
-            // Capturamos el resultado para usar en el dibujo
+            // Procesar con gestor de experiencia
             progressInfo = ExperienceManager.update(smoothed);
             
             detectionStats.poseCount = 1;
@@ -1291,76 +1686,69 @@ async function predictWebcam() {
 
         const drawingUtils = new DrawingUtils(canvasCtx);
         
-        // Dibujado de esqueleto
-        // Dibujado de esqueleto
+        // 🎨 DIBUJADO OPTIMIZADO DEL ESQUELETO
         if (smoothed) {
-            // DETERMINAR COLORES SEGÚN VALIDACIÓN
+            // ✨ Colores dinámicos según validación
             let currentColors = TRACKING_COLORS.DEFAULT;
             
-            // Si estamos en una fase activa de postura, usar colores de feedback
             if (progressInfo && progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting) {
-                if (progressInfo.isValid) {
-                    currentColors = TRACKING_COLORS.SUCCESS; // Verde
-                } else {
-                    currentColors = TRACKING_COLORS.WARNING; // Naranja
-                }
+                currentColors = progressInfo.isValid ? 
+                  TRACKING_COLORS.SUCCESS :  // Verde cuando es correcto
+                  TRACKING_COLORS.WARNING;   // Naranja cuando hay error
             }
           
-            // Calcular confianza promedio
-            const avgConfidence = smoothed.reduce((sum, point) => 
-               sum + (point.visibility || 0), 0) / smoothed.length;
-            detectionStats.confidence = avgConfidence;
+            // Calcular confianza promedio (1 sola pasada)
+            let sumConfidence = 0;
+            for (let i = 0; i < smoothed.length; i++) {
+              sumConfidence += (smoothed[i].visibility || 0);
+            }
+            detectionStats.confidence = sumConfidence / smoothed.length;
           
-            // Dibujar puntos con colores dinámicos
+            // Dibujar landmarks con colores dinámicos
             drawingUtils.drawLandmarks(smoothed, {
               color: currentColors.LANDMARK_BORDER,
               fillColor: currentColors.LANDMARK_FILL,
               radius: (data) => DrawingUtils.lerp(data.from.z, -0.15, 0.1, 8, 2)
             });
           
-            // Dibujar conexiones
+            // Dibujar conexiones del esqueleto
             drawingUtils.drawConnectors(
-               smoothed, 
-               PoseLandmarker.POSE_CONNECTIONS,
-               { color: currentColors.CONNECTOR, lineWidth: 3 }
+              smoothed, 
+              PoseLandmarker.POSE_CONNECTIONS,
+              { color: currentColors.CONNECTOR, lineWidth: 3 }
             );
 
-            // Dibujar Feedback UI sobre el esqueleto
+            // 📊 ACTUALIZAR OVERLAYS DE UI
             if (progressInfo) {
-                if (progressInfo.isValid || (progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting)) {
-                     // Mostrar circulo de estado solo si estamos validando
-                     drawValidationFeedback(canvasCtx, canvasElement.width, canvasElement.height, { success: progressInfo.isValid });
+                // Feedback de validación (círculo en esquina)
+                if (progressInfo.isValid !== undefined && !progressInfo.isAudioPlaying && !progressInfo.isWaiting) {
+                     updateValidationOverlay(progressInfo.isValid);
+                } else {
+                     hideValidationOverlay();
                 }
                 
-                if (progressInfo.current !== undefined && progressInfo.total !== undefined) {
-                    drawProgressIndicator(canvasCtx, canvasElement.width, canvasElement.height, progressInfo.current, progressInfo.total, progressInfo.name);
-                }
+                // Barra de progreso y estadísticas (abajo)
+                updateProgressOverlay(progressInfo, detectionStats);
+            } else {
+                hideProgressOverlay();
             }
         }
         
         canvasCtx.restore();
-        updateStats();
         
-        // Analizar postura si el entrenador está activo (Legacy / Extra feature)
-        if (liftingTrainer.enabled && smoothed) {
-          const analysis = analyzeLiftingPosture(smoothed);
-          if (analysis) {
-            updateTrainerUI(analysis);
-          }
-        }
-
+        // 📈 Actualizar estado en UI
         if (detectionStats.poseCount > 0) {
-          updateStatus(`\u2705 Detectando ${detectionStats.poseCount} pose(s)`);
+          updateStatus(`✅ Detectando ${detectionStats.poseCount} pose(s)`);
         } else {
-          updateStatus('\ud83d\udc40 Esperando persona en cuadro...');
+          updateStatus('👀 Esperando persona en cuadro...');
         }
       });
     } catch (error) {
-      console.error("Error en detecci\u00f3n:", error);
+      console.error("❌ Error en detección:", error);
     }
   }
 
-  // Continuar predicci\u00f3n si la c\u00e1mara est\u00e1 activa
+  // ⏱️ Continuar loop de predicción
   if (webcamRunning === true) {
     window.requestAnimationFrame(predictWebcam);
   }
@@ -1381,7 +1769,7 @@ async function autoStartCamera() {
   const checkModel = setInterval(async () => {
     if (poseLandmarker) {
       clearInterval(checkModel);
-      console.log('✔ Modelo cargado, preparando cámara...');
+      console.log('✅ Modelo cargado, preparando cámara...');
       
       // Actualizar mensaje inicial
       if (loadingSubtext) loadingSubtext.innerHTML = 'Modelo de IA cargado. Preparando acceso a cámara...';
@@ -1391,14 +1779,14 @@ async function autoStartCamera() {
         console.log('🎥 Iniciando cámara automáticamente...');
         try {
           await enableCam();
-          console.log('✔ Cámara iniciada correctamente');
+          console.log('✅ Cámara iniciada correctamente');
           
           // Ocultar loading con transición
           if (loadingOverlay) {
             loadingOverlay.style.opacity = '0';
             setTimeout(() => {
               loadingOverlay.style.display = 'none';
-              console.log('✔ Loading overlay oculto');
+              console.log('✅ Loading overlay oculto');
             }, 300);
           }
         } catch (error) {
@@ -1414,7 +1802,7 @@ async function autoStartCamera() {
 // Iniciar cámara automáticamente
 autoStartCamera();
 // Mensaje de bienvenida en consola
-console.log('%c\ud83c\udf93 ISTEduca - Detección de Poses con IA ', 
+console.log('%c\ud83c\udf93 ISTEduca - Detecci\u00f3n de Poses con IA ', 
   'background: linear-gradient(135deg, #ff00a6, #7300ff); color: white; padding: 10px 20px; font-size: 16px; font-weight: bold; border-radius: 5px;');
 console.log('%cPowered by MediaPipe \ud83e\udd16', 
   'color: #4A3168; font-size: 14px; font-weight: bold;');
@@ -1456,10 +1844,10 @@ modelRadios.forEach(radio => {
       
       if (applyModelButton) {
         applyModelButton.style.display = 'block';
-        applyModelButton.textContent = `Cambiar a ${selectedModel.toUpperCase()} (${webcamRunning ? 'reinicia cÃ¡mara' : 'aplicar'})`;
+        applyModelButton.textContent = `Cambiar a ${selectedModel.toUpperCase()} (${webcamRunning ? 'reinicia cámara' : 'aplicar'})`;
       }
     } else {
-      // VolviÃ³ al modelo actual
+      // Volvió al modelo actual
       pendingModelChange = null;
       if (applyModelButton) {
         applyModelButton.style.display = 'none';
@@ -1500,7 +1888,7 @@ if (applyModelButton) {
     updateStatus(`Cambiando a modelo ${pendingModelChange.toUpperCase()}...`);
     await createPoseLandmarker(pendingModelChange);
     
-    // Ocultar botÃ³n de aplicar
+    // Ocultar botón de aplicar
     applyModelButton.style.display = 'none';
     pendingModelChange = null;
     
@@ -1513,6 +1901,6 @@ if (applyModelButton) {
       updateStatus(`Modelo ${currentModel.toUpperCase()} listo`);
     }
     
-    console.log(`✔ Modelo cambiado a: ${currentModel.toUpperCase()}`);
+    console.log(`✅ Modelo cambiado a: ${currentModel.toUpperCase()}`);
   });
 }
