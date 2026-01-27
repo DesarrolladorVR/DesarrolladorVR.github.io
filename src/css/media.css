@@ -1908,12 +1908,19 @@ body {
   
   .container {
     width: 98vw;
+    min-height: 100vh;
     padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 15px;
   }
   
   .header {
-    padding: 10px 0;
-    margin-bottom: 10px;
+    flex: 0 0 auto;
+    padding: 5px 0;
+    margin-bottom: 0;
+    order: 1; /* Always first */
   }
   
   .logo {
@@ -1926,10 +1933,16 @@ body {
     gap: 12px;
   }
   
+  /* Wrapper del video centrado */
   .video-wrapper {
-    max-width: 100%;
-    width: 100%;
-    border-radius: 10px;
+    order: 3; /* Third item */
+    width: 80%;
+    max-width: 350px;
+    aspect-ratio: 3/4;
+    border-radius: 15px;
+    margin: 0 auto;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+    flex: 0 0 auto;
   }
   
   #webcam,
@@ -1938,13 +1951,19 @@ body {
   }
   
   /* Panel de calibraci�n compacto */
+  /* Panel de calibración compacto y ARRIBA */
   .calibration-panel {
-    width: 100%;
+    order: 2; /* Header is 1, Panel is 2 */
+    width: 90%;
     max-width: none;
-    margin: 0;
-    padding: 15px;
+    margin: 0 auto;
+    padding: 10px;
     position: relative;
     top: auto;
+    background: #2d2d2d;
+    color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   }
   
   .panel-header {

@@ -185,17 +185,119 @@ async function enableCam() {
 // INICIALIZACIÓN
 // ============================================================
 
+// ============================================================
+// APP STATE MACHINE
+// ============================================================
+const AppState = {
+    state: 'INIT', // INIT, LOADING_MODEL, READY, ERROR
+    
+    transition(newState, payload) {
+        console.log(`[AppState] Transition: ${this.state} -> ${newState}`, payload || '');
+        this.state = newState;
+        
+        switch(newState) {
+            case 'LOADING_MODEL':
+                this.updateSplashText('Cargando Cerebro IA...');
+                break;
+            case 'READY':
+                this.dismissSplash();
+                // Ensure main content is visible
+                const main = document.getElementById('mainContent');
+                if(main) main.style.opacity = '1';
+                break;
+            case 'ERROR':
+                this.showSplashError(payload);
+                break;
+        }
+    },
+    
+    updateSplashText(text) {
+        const el = document.querySelector('#globalSplash .splash-text');
+        if(el) el.textContent = text;
+    },
+    
+    dismissSplash() {
+        const splash = document.getElementById('globalSplash');
+        if(splash) {
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+            }, 500);
+        }
+    },
+    
+    showSplashError(msg) {
+        const splash = document.getElementById('globalSplash');
+        if(splash) {
+            splash.innerHTML = `
+                <div style="text-align:center; padding:20px;">
+                    <div style="font-size:3rem;">⚠️</div>
+                    <h3>Algo salió mal</h3>
+                    <p>${msg}</p>
+                    <button onclick="location.reload()" style="
+                        margin-top:15px;
+                        padding:10px 20px;
+                        background:var(--pink-ist);
+                        color:white;
+                        border:none;
+                        border-radius:20px;
+                        font-family:'Poppins';
+                        cursor:pointer;
+                    ">Reintentar</button>
+                </div>
+            `;
+        }
+    }
+};
+
+// ============================================================
+// MAIN ENTRY POINT
+// ============================================================
+
 async function main() {
     console.log('🚀 Iniciando ISTEduca Modular...');
     
-    // Init Experience Manager
-    ExperienceManager.init();
+    AppState.transition('LOADING_MODEL');
     
-    // Init PoseEngine
-    const autoModel = PoseEngine.selectModelByPerformance();
-    await PoseEngine.initializePoseLandmarker(autoModel);
+    try {
+        // Init Managers
+        ExperienceManager.init();
+        
+        // --- TIMEOUT PROTECTION FOR AI LOADING ---
+        // If AI generation takes > 15s on mobile, we proceed or show error
+        const modelLoadPromise = (async () => {
+             const autoModel = PoseEngine.selectModelByPerformance();
+             await PoseEngine.initializePoseLandmarker(autoModel);
+             return true;
+        })();
+        
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout al cargar IA")), 20000)
+        );
+        
+        await Promise.race([modelLoadPromise, timeoutPromise]);
+        
+        // --- SUCCESS ---
+        console.log("✅ Modelo Cargado Exitosamente");
+        AppState.transition('READY');
+        
+        // Auto-start camera interaction logic
+        // We update the secondary internal loading text just in case
+        const loadingSubtext = document.getElementById('loadingSubtext');
+        if (loadingSubtext) loadingSubtext.innerHTML = 'Motor IA listo. Iniciando cámara...';
+        
+        await enableCam(); // This manages the internal loadingOverlay
+        
+    } catch (error) {
+        console.error("🔥 Error Critico en Main:", error);
+        AppState.transition('ERROR', "No pudimos cargar el motor de IA. <br><small>" + error.message + "</small>");
+    }
     
-    // Botones
+    // Setup UI Bindings
+    setupButtons();
+}
+
+function setupButtons() {
     const webcamButton = document.getElementById("webcamButton");
     if (webcamButton) {
         webcamButton.addEventListener("click", enableCam);
@@ -212,13 +314,11 @@ async function main() {
             }
         });
     }
-
-    // Auto-start camera immediately
-    const loadingSubtext = document.getElementById('loadingSubtext');
-    if (loadingSubtext) loadingSubtext.innerHTML = 'Modelo IA cargado. Iniciando cámara...';
-    
-    await enableCam();
 }
 
 // Start
-main();
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", main);
+} else {
+    main();
+}
