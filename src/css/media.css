@@ -1025,8 +1025,13 @@ body {
 }
 
 .loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
   text-align: center;
   padding: 40px;
+  width: 100%; 
 }
 
 .loading-icon {
@@ -1036,7 +1041,7 @@ body {
   border-radius: 50%;
   border-top-color: var(--pink-ist);
   animation: spin 1s ease-in-out infinite;
-  margin-bottom: 20px;
+  margin: 0 auto 20px auto; /* Force horizontal centering */
 }
 
 @keyframes spin {
@@ -2126,9 +2131,56 @@ body {
     font-size: 0.9rem;
   }
   
+  /* Subtítulos del guión: Restaurados y posicionados para no estorbar */
   .subtitle-text {
-    font-size: 1rem;
-    padding: 10px;
+    display: block !important;
+    position: absolute;
+    bottom: 120px; /* Above the calibration panel */
+    left: 5%;
+    width: 90%;
+    text-align: center;
+    font-size: 0.9rem;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    background: rgba(0,0,0,0.4); /* Better readability */
+    padding: 8px;
+    border-radius: 8px;
+    z-index: 18; /* Above video, below loading */
+    pointer-events: none;
+  }
+  
+  /* Phase Info compacta y no intrusiva */
+  .progress-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: rgba(255,255,255,0.8);
+      padding: 5px 10px;
+      border-radius: 0 0 10px 10px;
+      z-index: 5;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+  }
+  
+  .phase-info {
+      margin-bottom: 0;
+  }
+  
+  .phase-name {
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  
+  .phase-icon {
+      font-size: 1rem;
+      margin-right: 5px;
+  }
+
+  /* Ocultar barras de estadísticas en móvil para limpieza */
+  .stats-bar {
+      display: none !important;
   }
 }
 

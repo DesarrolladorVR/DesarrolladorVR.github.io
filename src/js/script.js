@@ -213,14 +213,11 @@ async function main() {
         });
     }
 
-    // Auto-start camera
+    // Auto-start camera immediately
     const loadingSubtext = document.getElementById('loadingSubtext');
     if (loadingSubtext) loadingSubtext.innerHTML = 'Modelo IA cargado. Iniciando cámara...';
     
-    // Give a small moment for UI update then start
-    setTimeout(async () => {
-        await enableCam();
-    }, 100);
+    await enableCam();
 }
 
 // Start

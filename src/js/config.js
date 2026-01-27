@@ -29,21 +29,31 @@ export const VIDEO_CONFIG = {
   FRAME_RATE: 30
 };
 
+// Detect Mobile (Portrait)
+const isMobile = window.innerWidth < 768;
+
 export const LANDMARK_THRESHOLDS = {
     VISIBILITY_MIN: 0.5,
     VISIBILITY_MIN_STRICT: 0.65,
-    VISIBILITY_MIN_LOOSE: 0.15, // Reduced for backlighting tolerance
+    VISIBILITY_MIN_LOOSE: 0.15, 
     SHOULDER_LEVEL_TOLERANCE: 0.04,
-    FACE_GUIDE_Y: 0.3, // Updated to match CSS top 40% + half height 15%
-    FACE_GUIDE_HEIGHT: 0.15,
-    SHOULDER_GUIDE_Y: 0.66, // Updated to match CSS top 75% + half height 10%
+    
+    // Dynamic thresholds based on device
+    // Mobile: Face needs to be lower (approx 0.45-0.5) because guide is at 25% screen top,
+    // but video cropping shifts relative coordinates.
+    FACE_GUIDE_Y: isMobile ? 0.45 : 0.3, 
+    FACE_GUIDE_HEIGHT: isMobile ? 0.20 : 0.15,
+    
+    SHOULDER_GUIDE_Y: isMobile ? 0.75 : 0.66, 
     SHOULDER_GUIDE_X: 0.50,
     SHOULDER_GUIDE_HEIGHT: 0.10,
-    SHOULDER_GUIDE_WIDTH: 0.50,
-    CALIBRATION_TOLERANCE: 0.15, // Increased tolerance
-    STRAIGHT_BACK_ANGLE: 30, // Degrees
-    KNEES_FLEXED_ANGLE: 140, // Degrees
-    LOAD_CLOSE_DISTANCE: 0.25 // Normalized
+    SHOULDER_GUIDE_WIDTH: isMobile ? 0.70 : 0.50, // Matches CSS width
+    
+    CALIBRATION_TOLERANCE: isMobile ? 0.25 : 0.15, // More permissive on mobile
+    
+    STRAIGHT_BACK_ANGLE: 30, 
+    KNEES_FLEXED_ANGLE: 140, 
+    LOAD_CLOSE_DISTANCE: 0.25 
 };
 
 export const AUDIO_PATHS = {
