@@ -24,24 +24,28 @@ body {
   font-family: 'Poppins', sans-serif;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   color: #333;
-  line-height: 1.6;
-  min-height: 100vh;
-  /* zoom removido - ahora usa sistema responsive */
+  line-height: 1.4;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden; /* Evitar scroll */
 }
 
 .container {
-  max-width: 1400px;
-  width: 92vw;
-  margin: 0 auto;
-  padding: 16px 20px;
+  max-width: 100%;
+  width: 100%;
+  height: 100vh;
+  margin: 0;
+  padding: 10px 20px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Header y Logo */
+/* Header y Logo Compacto */
 .header {
   text-align: center;
-  padding: 15px 0;
+  padding: 5px 0;
   background: transparent;
-  margin-bottom: 20px;
+  flex-shrink: 0; /* No encoger header */
 }
 
 .logo-container {
@@ -51,15 +55,20 @@ body {
 }
 
 .logo {
-  max-width: 180px;
-  height: auto;
-  width: 100%;
+  max-height: 40px; /* Logo mas pequeño */
+  width: auto;
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
 }
 
-/* Contenido Principal */
+/* Contenido Principal Ajustable */
 .main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Centrar verticalmente */
   animation: fadeIn 0.8s ease-in;
+  overflow: hidden;
+  padding-bottom: 10px;
 }
 
 @keyframes fadeIn {
@@ -96,23 +105,27 @@ body {
 /*  --------------CAMARA--------------- */
 .camera-section {
   background: white;
-  padding: 40px;
+  padding: 20px;
   border-radius: 20px;
-  margin-bottom: 30px;
+  margin-bottom: 0;
   box-shadow: var(--shadow);
   text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .instruction-box h2 {
   color: var(--purple-ist);
-  font-size: 2rem;
-  margin-bottom: 15px;
+  font-size: 1.5rem; /* Reducido de 2rem */
+  margin-bottom: 5px;
 }
 
 .instruction-box p {
   color: #666;
-  font-size: 1.1rem;
-  margin-bottom: 20px;
+  font-size: 1rem;
+  margin-bottom: 10px;
 }
 
 .tips {
@@ -357,8 +370,6 @@ body {
   transition: all 0.3s ease;
   margin-bottom: 8px;
 }
-  margin-bottom: 10px;
-}
 
 .apply-model-btn:hover {
   transform: translateY(-2px);
@@ -432,19 +443,22 @@ body {
   font-size: 0.9rem;
 }
 
-/* Footer */
+/* Footer Compacto */
 .footer {
   background: white;
-  padding: 25px;
-  border-radius: 20px;
+  padding: 10px;
+  border-radius: 15px;
   text-align: center;
   box-shadow: var(--shadow);
-  margin-top: 30px;
+  margin-top: 10px;
+  flex-shrink: 0;
+  font-size: 0.8rem;
 }
 
 .footer p {
   color: var(--purple-ist);
   font-weight: 500;
+  margin: 0;
 }
 
 /* Utilidades */
@@ -996,7 +1010,7 @@ body {
 /* ===== SISTEMA DE CARGA CORPORATIVO ===== */
 
 .loading-overlay {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   width: 100%;
@@ -1005,8 +1019,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
-  transition: opacity 0.3s ease;
+  z-index: 20; /* Mayor que overlays de calibracion */
+  transition: opacity 0.5s ease;
+  border-radius: 15px; /* Match video wrapper */
 }
 
 .loading-container {
@@ -1015,36 +1030,20 @@ body {
 }
 
 .loading-icon {
-  font-size: 4rem;
-  margin: 0 auto 20px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { 
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% { 
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
-}
-
-.loading-spinner {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 25px;
-  border: 4px solid #e0e0e0;
-  border-top: 4px solid var(--pink-ist);
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  border-top-color: var(--pink-ist);
+  animation: spin 1s ease-in-out infinite;
+  margin-bottom: 20px;
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  to { transform: rotate(360deg); }
 }
+
+/* DELETED: .loading-spinner and old keyframes to clean up */
 
 .loading-text {
   font-size: 1.3rem;
@@ -1100,62 +1099,57 @@ body {
   }
 }
 
- 
- / *   E s t i l o s   p a r a   S u b t � � t u l o s   /   G u i o n   * / 
- 
- . s u b t i t l e - t e x t   { 
- 
-     f o n t - f a m i l y :   ' L a t o ' ,   s a n s - s e r i f ; 
- 
-     c o l o r :   v a r ( - - p u r p l e - i s t ) ; 
- 
-     f o n t - s i z e :   1 . 5 r e m ; 
- 
-     t e x t - a l i g n :   c e n t e r ; 
- 
-     m a r g i n :   2 0 p x   a u t o ; 
- 
-     p a d d i n g :   2 0 p x ; 
- 
-     m a x - w i d t h :   9 0 0 p x ; 
- 
-     l i n e - h e i g h t :   1 . 5 ; 
- 
-     b a c k g r o u n d :   r g b a ( 2 5 5 ,   2 5 5 ,   2 5 5 ,   0 . 8 ) ; 
- 
-     b o r d e r - r a d i u s :   1 5 p x ; 
- 
-     b o x - s h a d o w :   0   5 p x   1 5 p x   r g b a ( 7 4 ,   4 9 ,   1 0 4 ,   0 . 1 ) ; 
- 
-     m i n - h e i g h t :   8 0 p x ; 
- 
-     d i s p l a y :   f l e x ; 
- 
-     a l i g n - i t e m s :   c e n t e r ; 
- 
-     j u s t i f y - c o n t e n t :   c e n t e r ; 
- 
-     t r a n s i t i o n :   a l l   0 . 5 s   e a s e ; 
- 
-     o p a c i t y :   0 ;   
- 
-     t r a n s f o r m :   t r a n s l a t e Y ( 1 0 p x ) ; 
- 
- } 
- 
- 
- 
- . s u b t i t l e - t e x t . a c t i v e   { 
- 
-     o p a c i t y :   1 ; 
- 
-     t r a n s f o r m :   t r a n s l a t e Y ( 0 ) ; 
- 
- } 
- 
- 
+/* Estilos para Subtítulos / Guion */
+.subtitle-text {
+
+  font-family: 'Lato', sans-serif;
+
+  color: var(--purple-ist);
+
+  font-size: 1.5rem;
+
+  text-align: center;
+
+  margin: 20px auto;
+
+  padding: 20px;
+
+  max-width: 900px;
+
+  line-height: 1.5;
+
+  background: rgba(255, 255, 255, 0.8);
+
+  border-radius: 15px;
+
+  box-shadow: 0 5px 15px rgba(74, 49, 104, 0.1);
+
+  min-height: 80px;
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  transition: all 0.5s ease;
+
+  opacity: 0; 
+
+  transform: translateY(10px);
+
+}
+
+.subtitle-text.active {
+
+  opacity: 1;
+
+  transform: translateY(0);
+
+}
+
 /* ============================================================ */
-/* OVERLAYS DE CALIBRACI�N Y VALIDACI�N */
+/* OVERLAYS DE CALIBRACION Y VALIDACION */
 /* ============================================================ */
 
 /* Contenedor del video con posicionamiento relativo */
@@ -1168,7 +1162,7 @@ body {
   align-items: center;
 }
 
-/* Overlay de Calibraci�n */
+/* Overlay de Calibracion */
 .calibration-overlay {
   position: absolute;
   top: 0;
@@ -1185,17 +1179,35 @@ body {
 
 .calibration-title {
   position: absolute;
-  top: 30px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 1.8rem;
-  font-weight: bold;
+  width: 90%;
+  max-width: 600px;
+  text-align: center;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
   color: white;
-  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
-  background: rgba(0, 0, 0, 0.5);
-  padding: 10px 30px;
-  border-radius: 10px;
-  animation: pulse 2s ease-in-out infinite;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 12px 20px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  animation: slideDownFade 0.5s ease-out;
+}
+
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translate(-50%, -20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 @keyframes pulse {
@@ -1203,7 +1215,7 @@ body {
   50% { opacity: 0.7; }
 }
 
-/* Gu�as de calibraci�n */
+/* Guias de calibracion */
 .calibration-guide {
   position: absolute;
   left: 50%;
@@ -1211,16 +1223,16 @@ body {
 }
 
 .face-guide {
-  top: 40%;        /* ← Distancia desde arriba */
+  top: 30%;        /* ← Distancia desde arriba */
   width: 30%;      /* ← Ancho del cuadro */
-  height: 25%;     /* ← Alto del cuadro */
+  height: 15%;     /* ← Alto del cuadro */
   transition: all 0.3s ease;
 }
 
 .shoulder-guide {
   top: 75%;        /* ← Distancia desde arriba */
-  width: 45%;      /* ← Ancho del cuadro */
-  height: 25%;     /* ← Alto del cuadro */
+  width: 50%;      /* ← Ancho del cuadro */
+  height: 10%;     /* ← Alto del cuadro */
   transition: all 0.3s ease;
 }
 
@@ -1324,13 +1336,30 @@ body {
   text-align: center;
 }
 
-/* Overlay de Validaci�n (c�rculo de feedback) */
+/* Overlay de Validacion (circulo de feedback) */
 .validation-overlay {
   position: absolute;
   top: 20px;
   right: 20px;
   z-index: 10;
   pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.validation-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  background: rgba(0,0,0,0.6);
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0.8;
 }
 
 .validation-overlay.hidden {
@@ -1338,18 +1367,18 @@ body {
 }
 
 .validation-circle {
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
-  border: 4px solid transparent;
-  background: rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(5px);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  font-size: 1.5rem;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .validation-circle.success {
@@ -1618,11 +1647,13 @@ body {
 .video-wrapper {
   position: relative;
   width: 100%;
-  max-width: 900px;
+  height: 100%;
+  max-height: 75vh; /* Limite de altura para pantallas 1080p */
   aspect-ratio: 16 / 9;
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  margin: 0 auto;
 }
 
 #webcam,
@@ -1938,8 +1969,30 @@ body {
   }
   
   .calibration-instructions p {
-    margin: 6px 0;
-    font-size: 0.8rem;
+    margin: 12px 0;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    line-height: 1.5;
+    color: #e0e0e0;
+  }
+
+  .calibration-instructions .icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: -2px; /* Slight alignment fix */
+    width: 24px;
+    text-align: center;
+  }
+
+  .calibration-instructions .text {
+    flex: 1;
+  }
+
+  .calibration-instructions strong {
+    color: var(--green-ist, #00ff88); /* Green highlight for emphasis */
+    font-weight: 600;
   }
   
   /* Gu�as de calibraci�n */
