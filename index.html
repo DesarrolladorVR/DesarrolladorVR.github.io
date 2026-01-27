@@ -105,19 +105,8 @@
     </div>
     
     <script>
-      // Immediate cleanup script
-      window.addEventListener('load', () => {
-        const splash = document.getElementById('globalSplash');
-        if(splash) {
-           setTimeout(() => {
-             splash.style.opacity = '0';
-             setTimeout(() => {
-               splash.style.visibility = 'hidden';
-               splash.style.display = 'none';
-             }, 500); // Wait for fade out transition
-           }, 9000); // 5 seconds delay
-        }
-      });
+      // El splash screen ahora es gestionado por script.js -> main()
+      // para asegurar que solo desaparece cuando MediaPipe carga.
     </script>
     <div class="container">
       <!-- Audio para feedback -->
