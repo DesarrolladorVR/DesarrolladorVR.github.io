@@ -2139,6 +2139,11 @@ body {
     width: 45%;
     height: 10%;
   }
+
+  @media (max-width: 768px) {
+    .face-guide { top: 16%; width: 30%; height: 13%; } /* Ejemplo */
+    .shoulder-guide { top: 57%; width: 85%; height: 10%; }
+}
   
   .guide-label {
     font-size: 0.7rem;

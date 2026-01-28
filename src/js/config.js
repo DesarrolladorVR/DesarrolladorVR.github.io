@@ -42,10 +42,10 @@ export const LANDMARK_THRESHOLDS = {
     // Dynamic thresholds based on device
     // Mobile: Face needs to be lower (approx 0.45-0.5) because guide is at 25% screen top,
     // but video cropping shifts relative coordinates.
-    FACE_GUIDE_Y: isMobile ? 0.45 : 0.3, 
+    FACE_GUIDE_Y: isMobile ? 0.05 : 0.3, 
     FACE_GUIDE_HEIGHT: isMobile ? 0.20 : 0.15,
     
-    SHOULDER_GUIDE_Y: isMobile ? 0.75 : 0.66, 
+    SHOULDER_GUIDE_Y: isMobile ? 0.42 : 0.66, 
     SHOULDER_GUIDE_X: 0.50,
     SHOULDER_GUIDE_HEIGHT: 0.10,
     SHOULDER_GUIDE_WIDTH: isMobile ? 0.70 : 0.50, // Matches CSS width
