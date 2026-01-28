@@ -1,7 +1,7 @@
 ﻿// ISTEduca - Entry Point
 // Sistema de detección de poses modularizado
 
-import { TRACKING_COLORS, VIDEO_CONFIG } from './config.js';
+import { TRACKING_COLORS, VIDEO_CONFIG, isMobile } from './config.js';
 import * as PoseEngine from './modules/PoseEngine.js';
 import * as UIManager from './modules/UIManager.js';
 import { ExperienceManager } from './modules/ExperienceManager.js';
@@ -43,9 +43,15 @@ async function predictWebcam() {
 
     let startTimeMs = performance.now();
     
-    // Frame skipping
+    // Frame skipping logic
+    // Mobile: Process ~10 FPS (Skip 2 frames if 30fps)
+    // Desktop: Process ~15-30 FPS (Skip 1 or 0)
+    
+    // Using imported isMobile from config.js
+    const skipThreshold = isMobile ? 3 : 2; 
+
     frameSkipCounter++;
-    const shouldProcess = frameSkipCounter % 2 === 0;
+    const shouldProcess = frameSkipCounter % skipThreshold === 0;
 
     if (lastVideoTime !== video.currentTime && shouldProcess) {
         lastVideoTime = video.currentTime;
@@ -59,11 +65,6 @@ async function predictWebcam() {
             
             if (result.landmarks && result.landmarks.length > 0) {
                 // Suavizado
-                // Nota: smoothLandmarks en Biomechanics requiere historia.
-                // Como es stateless, deberíamos mantener historia aquí o en PoseEngine.
-                // Por simplicidad, y dado que ExperienceManager no lo maneja, 
-                // vamos a instanciar un 'smoother' o mantenerlo aquí.
-                // OJO: Biomechanics.smoothLandmarks toma history array.
                 if (!window.landmarkHistory) window.landmarkHistory = [];
                 smoothed = Biomechanics.smoothLandmarks(result.landmarks[0], window.landmarkHistory);
                 
@@ -75,8 +76,6 @@ async function predictWebcam() {
                     const analysis = Biomechanics.analyzeLiftingPosture(smoothed);
                     UIManager.updateTrainerUI(analysis, () => liftingTrainer.enabled);
                 }
-
-
                 
                 // Stats
                 UIManager.updateStatus(`✅ Detectando pose`);
@@ -87,12 +86,14 @@ async function predictWebcam() {
             
             // DIBUJADO
             if (smoothed) {
-                let currentColors = TRACKING_COLORS.DEFAULT;
-                if (progressInfo && progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting) {
-                    currentColors = progressInfo.isValid ? TRACKING_COLORS.SUCCESS : TRACKING_COLORS.WARNING;
+                // OPTIMIZACIÓN: No dibujar esqueleto en móviles
+                if (!isMobile) {
+                    let currentColors = TRACKING_COLORS.DEFAULT;
+                    if (progressInfo && progressInfo.name && !progressInfo.isAudioPlaying && !progressInfo.isWaiting) {
+                        currentColors = progressInfo.isValid ? TRACKING_COLORS.SUCCESS : TRACKING_COLORS.WARNING;
+                    }
+                    UIManager.drawSkeleton(smoothed, currentColors);
                 }
-                
-                UIManager.drawSkeleton(smoothed, currentColors);
                 
                 // Actualizar UI overlays
                 if (progressInfo) {

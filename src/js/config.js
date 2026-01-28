@@ -23,14 +23,16 @@ export const TRACKING_COLORS = {
   }
 };
 
+// Detect Mobile (Portrait)
+export const isMobile = window.innerWidth < 768;
+
 export const VIDEO_CONFIG = {
-  WIDTH: 960,
-  HEIGHT: 540,
+  // Mobile: 480x360 (4:3) or similar low res for performance
+  // Desktop: 960x540 (16:9) high res
+  WIDTH: isMobile ? 480 : 960,
+  HEIGHT: isMobile ? 360 : 540,
   FRAME_RATE: 30
 };
-
-// Detect Mobile (Portrait)
-const isMobile = window.innerWidth < 768;
 
 export const LANDMARK_THRESHOLDS = {
     VISIBILITY_MIN: 0.5,
