@@ -1597,7 +1597,18 @@ body {
 }
 
 /* ============================================================ */
-/* FIX: CALIBRATION STATUS REPOSICIONADO (NO TAPA GU�AS) */
+/* FIX: CALIBRATION STATUS REPOSICIONADO (NO TAPA GUAS) */
+
+/* OPTIMIZACIÓN: Desactivar animaciones en móviles para ahorrar batería/CPU */
+@media (max-width: 768px) {
+  .status-icon, 
+  .phase-icon, 
+  .loading-icon,
+  .warning-icon,
+  .iframe-banner-icon {
+    animation: none !important;
+  }
+}
 /* ============================================================ */
 
 .calibration-status {

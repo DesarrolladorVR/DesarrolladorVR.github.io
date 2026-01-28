@@ -27,9 +27,8 @@ export const TRACKING_COLORS = {
 export const isMobile = window.innerWidth < 768;
 
 export const VIDEO_CONFIG = {
-  // Mobile: 480x360 (4:3) or similar low res for performance
-  // Desktop: 960x540 (16:9) high res
-  WIDTH: isMobile ? 480 : 960,
+  // Mobile: 640x360 (16:9) - Matches Desktop aspect ratio for correct guide alignment
+  WIDTH: isMobile ? 640 : 960,
   HEIGHT: isMobile ? 360 : 540,
   FRAME_RATE: 30
 };
