@@ -315,6 +315,12 @@ function setupButtons() {
             }
         });
     }
+
+    // Setup repeat button
+    UIManager.setupRepeatButton(() => {
+        console.log('🔄 Reiniciando experiencia...');
+        ExperienceManager.reset();
+    });
 }
 
 // Start

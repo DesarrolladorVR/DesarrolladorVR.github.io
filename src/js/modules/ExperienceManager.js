@@ -210,6 +210,9 @@ export const ExperienceManager = {
           
           if (phase.nextTrigger === 'auto_after_audio') {
              this.transitionTo(phaseId + 1);
+          } else if (phase.nextTrigger === 'end') {
+             // Experiencia completada: mostrar botón de repetir
+             UIManager.showRepeatButton();
           }
       } else {
           this.audioFinishedTime = Date.now();
@@ -218,13 +221,19 @@ export const ExperienceManager = {
   },
   
   reset() {
-      this.currentPhase = 0;
+      this.currentPhase = -1;
+      this.phaseStartTime = 0;
+      this.audioFinishedTime = 0;
+      this.holdStartTime = 0;
       this.isAudioPlaying = false;
       if (this.currentAudio) {
           this.currentAudio.pause();
           this.currentAudio = null;
       }
       backBaseline = null;
+      jitterToleranceFrames = 0;
       UIManager.updateSubtitle('');
+      UIManager.hideRepeatButton();
+      UIManager.hideCalibrationOverlay();
   }
 };

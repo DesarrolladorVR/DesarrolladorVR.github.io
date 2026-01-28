@@ -163,12 +163,20 @@
             <div class="video-wrapper">
               <video id="webcam" autoplay playsinline></video>
               <canvas id="output_canvas"></canvas>
+              
+              <!-- Botón de Repetir (oculto por defecto) -->
+              <div id="repeatButtonContainer" class="repeat-button-container" style="display: none;">
+                <button id="repeatButton" class="repeat-button">
+                  <span class="repeat-icon">🔄</span>
+                  <span class="repeat-text">Repetir Experiencia</span>
+                </button>
+              </div>
 
               <!-- Sistema de Carga (Integrado) -->
               <div id="loadingOverlay" class="loading-overlay">
                 <div class="loading-container">
                   <div class="loading-icon"></div>
-                  <p class="loading-text" id="loadingText">Preparando cámara</p>
+                  <p class="loading-text" id="loadingText">Permite el acceso a tu cámara</p>
                   <p class="loading-subtext" id="loadingSubtext">
                     El navegador solicitará permiso para acceder a tu cámara.<br />Por
                     favor, <strong>acepta el permiso</strong> cuando aparezca.
@@ -178,10 +186,6 @@
 
               <!-- OVERLAY: Guías de Calibración -->
               <div id="calibrationOverlay" class="calibration-overlay hidden">
-                <div class="calibration-title">
-                  📏 Ubícate a 1 metro de la pantalla
-                </div>
-
                 <div class="calibration-guide face-guide">
                   <div class="guide-box"></div>
                   <div class="guide-label">Coloca tu ojos aquí</div>
@@ -223,17 +227,6 @@
                   >
                     <div class="hold-text">Mantén la postura</div>
                     <div class="hold-timer" id="holdTimer">0s / 2s</div>
-                  </div>
-
-                  <div class="stats-bar">
-                    <div class="stat-item">
-                      <span class="stat-label">Confianza:</span>
-                      <span class="stat-value" id="confidenceValue">0%</span>
-                    </div>
-                    <div class="stat-item">
-                      <span class="stat-label">Pose:</span>
-                      <span class="stat-value" id="poseValue">—</span>
-                    </div>
                   </div>
                 </div>
               </div>

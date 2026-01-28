@@ -28,8 +28,6 @@ const elements = {
   progressPercentage: document.getElementById('progressPercentage'),
   holdFeedback: document.getElementById('holdFeedback'),
   holdTimer: document.getElementById('holdTimer'),
-  confidenceValue: document.getElementById('confidenceValue'),
-  poseValue: document.getElementById('poseValue'),
   statusElement: document.getElementById('status'),
   loadingOverlay: document.getElementById('loadingOverlay'),
   loadingText: document.getElementById('loadingText'),
@@ -40,7 +38,9 @@ const elements = {
   challengesSection: document.getElementById('challenges'),
   liftingTrainerSection: document.getElementById('liftingTrainer'),
   canvasElement: document.getElementById("output_canvas"),
-  video: document.getElementById("webcam")
+  video: document.getElementById("webcam"),
+  repeatButtonContainer: document.getElementById('repeatButtonContainer'),
+  repeatButton: document.getElementById('repeatButton')
 };
 
 let canvasCtx = null;
@@ -393,16 +393,6 @@ export function updateProgressOverlay(progressInfo, stats, currentPhaseIndex) {
         elements.holdFeedback.style.display = 'none';
     }
   }
-  
-  if (stats) {
-    if (elements.confidenceValue && stats.confidence !== undefined) {
-        elements.confidenceValue.textContent = Math.round(stats.confidence * 100) + '%';
-    }
-    
-    if (elements.poseValue && stats.poseCount !== undefined) {
-        elements.poseValue.textContent = stats.poseCount > 0 ? '✓' : '—';
-    }
-  }
 }
 
 // ============================================================
@@ -499,4 +489,26 @@ export function showLightingWarning() {
 export function hideLightingWarning() {
     const warning = document.getElementById('lightingWarning');
     if (warning) warning.classList.add('hidden');
+}
+
+// ============================================================
+// REPEAT BUTTON
+// ============================================================
+
+export function showRepeatButton() {
+    if (elements.repeatButtonContainer) {
+        elements.repeatButtonContainer.style.display = 'flex';
+    }
+}
+
+export function hideRepeatButton() {
+    if (elements.repeatButtonContainer) {
+        elements.repeatButtonContainer.style.display = 'none';
+    }
+}
+
+export function setupRepeatButton(callback) {
+    if (elements.repeatButton) {
+        elements.repeatButton.addEventListener('click', callback);
+    }
 }
