@@ -214,6 +214,8 @@ body {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  background: #000;
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
@@ -224,6 +226,7 @@ body {
   height: auto;
   display: block;
   transform: scaleX(-1);
+  aspect-ratio: 16 / 9;
 }
 
 #output_canvas {
@@ -234,6 +237,7 @@ body {
   height: 100%;
   pointer-events: none;
   transform: scaleX(-1);
+  aspect-ratio: 16 / 9;
 }
 
 /* Información de Poses */

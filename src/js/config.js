@@ -58,14 +58,14 @@ export const LANDMARK_THRESHOLDS = {
 };
 
 export const AUDIO_PATHS = {
-    INTRO: 'voiceoff/intro.wav',
-    POSTURA_1: 'voiceoff/postura_1.wav',
-    POSTURA_2: 'voiceoff/postura_2.wav',
-    RESPIRACION: 'voiceoff/respiracion.wav',
-    CONEXION: 'voiceoff/conexion.wav',
-    SONRISA: 'voiceoff/sonrisa.wav',
-    CIERRE: 'voiceoff/cierre.wav',
-    CAMPANA: 'voiceoff/campana.wav'
+    INTRO: 'voiceoff/intro.mp3',
+    POSTURA_1: 'voiceoff/postura_1.mp3',
+    POSTURA_2: 'voiceoff/postura_2.mp3',
+    RESPIRACION: 'voiceoff/respiracion.mp3',
+    CONEXION: 'voiceoff/conexion.mp3',
+    SONRISA: 'voiceoff/sonrisa.mp3',
+    CIERRE: 'voiceoff/cierre.mp3',
+    CAMPANA: 'voiceoff/campana.mp3'
 };
 
 export const PHASE_CONFIG = {

@@ -7,6 +7,7 @@
     <title>ISTEduca - Pausa Saludable</title>
     <link rel="stylesheet" href="src/css/media.css" />
     <link rel="stylesheet" href="src/css/lighting_warning.css" />
+    <link rel="preload" as="image" href="assets/images/ist.png" fetchpriority="high" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -112,8 +113,8 @@
     </script>
     <div class="container">
       <!-- Audio para feedback -->
-      <audio id="armsUpSound" preload="auto">
-        <source src="assets/audio/arms-up-sound.wav" type="audio/wav" />
+      <audio id="armsUpSound" preload="metadata">
+        <source src="voiceoff/campana.mp3" type="audio/mp3" />
       </audio>
 
       <!-- Banner de advertencia para iframe (oculto por defecto, se muestra con JS) -->
@@ -139,7 +140,11 @@
           src="assets/images/ist.png"
           class="logo"
           alt="Logotipo ISTEduca"
-          loading="lazy"
+          width="160"
+          height="40"
+          loading="eager"
+          decoding="async"
+          fetchpriority="high"
         />
       </header>
 
